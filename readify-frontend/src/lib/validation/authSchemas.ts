@@ -43,20 +43,13 @@ export const signupSchema = z
 
 export type SignupSchema = z.infer<typeof signupSchema>;
 
-export const googleSignupCompleteSchema = z
-  .object({
-    username: usernameField,
-    password: passwordField,
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
+export const googleSignupCompleteSchema = z.object({
+  username: usernameField,
+});
 
   export const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
+  gmail: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 

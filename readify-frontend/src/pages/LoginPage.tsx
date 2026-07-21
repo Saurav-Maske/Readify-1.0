@@ -1,27 +1,71 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { CredentialResponse } from "@react-oauth/google";
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
+import axios from "axios";
 
 import { AuthLayout } from "../components/layout/AuthLayout";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { Divider } from "../components/ui/Divider";
 import { PasswordInput } from "../components/auth/PasswordInput";
-import { GoogleButton } from "../components/auth/GoogleButton";
 
 import { loginSchema } from "../lib/validation/authSchemas";
 import api from "../lib/api";
+import { showError, showSuccess, showWarning } from "../lib/popup";
+
+function getFriendlyErrorMessage(err: unknown) {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data;
+    const message = data?.error || data?.message || data?.detail;
+
+    if (message) return message;
+
+    if (!err.response || err.code === "ERR_NETWORK" || err.code === "ECONNABORTED") {
+      return "Unable to connect to the server. Please check your connection and try again.";
+    }
+  }
+
+  return "Unable to connect to the server. Please check your connection and try again.";
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ gmail: "", password: "" });
   const [fieldErrors, setFieldErrors] = useState<{
-    email?: string;
+    gmail?: string;
     password?: string;
   }>({});
   const [serverError, setServerError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const handleGoogleSuccess = async (cred: CredentialResponse) => {
+    try {
+      const res = await api.post("/auth/google", { idToken: cred.credential });
+
+      if (res.data.token) {
+        localStorage.setItem("readify_token", res.data.token);
+        showSuccess("Logged in successfully.");
+        navigate("/");
+        return;
+      }
+
+      if (res.data.needsUsername) {
+        showWarning("Complete your Google signup by choosing a username.");
+        navigate("/signup/complete-profile", {
+          state: {
+            pendingToken: res.data.pendingToken,
+            name: res.data.name,
+            email: res.data.gmail,
+          },
+        });
+      }
+    } catch (err) {
+      const message = getFriendlyErrorMessage(err);
+      setServerError(message);
+      showError(message);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -34,9 +78,9 @@ export default function LoginPage() {
 
     const validation = loginSchema.safeParse(form);
     if (!validation.success) {
-      const formattedErrors: { email?: string; password?: string } = {};
+      const formattedErrors: { gmail?: string; password?: string } = {};
       validation.error.issues.forEach((issue) => {
-        if (issue.path[0] === "email") formattedErrors.email = issue.message;
+        if (issue.path[0] === "gmail") formattedErrors.gmail = issue.message;
         if (issue.path[0] === "password")
           formattedErrors.password = issue.message;
       });
@@ -47,28 +91,20 @@ export default function LoginPage() {
     try {
       setLoading(true);
       const res = await api.post("/auth/login", form);
-      if (res.data.access) localStorage.setItem("access", res.data.access);
-      navigate("/feed");
-    } catch (err: any) {
-      setServerError(
-        err.response?.data?.message ||
-          err.response?.data?.detail ||
-          "Invalid credentials",
-      );
+      const { token } = res.data;
+
+      if (token) localStorage.setItem("readify_token", token);
+      showSuccess("Logged in successfully.");
+      navigate("/");
+    } catch (err: unknown) {
+      const message = getFriendlyErrorMessage(err);
+      setServerError(message);
+      showError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSuccess = async (cred: CredentialResponse) => {
-    try {
-      const res = await api.post("/auth/google", { token: cred.credential });
-      if (res.data.access) localStorage.setItem("access", res.data.access);
-      navigate("/feed");
-    } catch (err) {
-      setServerError("Google authentication failed.");
-    }
-  };
 
   return (
     <AuthLayout>
@@ -85,11 +121,11 @@ export default function LoginPage() {
         <Input
           label="Email"
           type="email"
-          name="email"
+          name="gmail"
           placeholder="you@example.com"
-          value={form.email}
+          value={form.gmail}
           onChange={handleChange}
-          error={fieldErrors.email}
+          error={fieldErrors.gmail}
         />
 
         <PasswordInput
@@ -116,9 +152,14 @@ export default function LoginPage() {
 
         <Divider />
 
-        <GoogleButton
-          onButton={handleGoogleSuccess}
-          onError={() => setServerError("Google Login failed")}
+        <GoogleLogin
+          onSuccess={handleGoogleSuccess}
+          onError={() => {
+            const message = "Unable to connect to the server. Please check your connection and try again.";
+            setServerError(message);
+            showError(message);
+          }}
+          useOneTap
         />
         {serverError && (
           <div className="mb-5 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">

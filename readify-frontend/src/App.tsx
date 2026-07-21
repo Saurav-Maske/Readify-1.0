@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import SignupPage from './pages/SignupPage';
 import GoogleSignupCompletePage from './pages/GoogleSignupCompletePage';

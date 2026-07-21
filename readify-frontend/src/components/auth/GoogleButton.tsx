@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 
 interface GoogleButtonProps {
-  onClick: () => void;
+  onClick?: () => void;
   isLoading?: boolean;
   label?: string;
 }
