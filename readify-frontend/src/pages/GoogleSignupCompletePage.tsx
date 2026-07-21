@@ -2,17 +2,27 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import toast from 'react-hot-toast';
+import axios from 'axios';
 import { AuthLayout } from '../components/layout/AuthLayout';
 import { UsernameField } from '../components/auth/UsernameField';
 import { Button } from '../components/ui/Button';
 import { googleSignupCompleteSchema, type GoogleSignupCompleteSchema } from '../lib/validation/authSchemas';
 import apiClient from '../lib/api';
-import type { AuthResponse } from '../types/auth';
+import { showError, showSuccess } from '../lib/popup';
 
 function extractErrorMessage(error: unknown): string {
-  const response = (error as { response?: { data?: { message?: string } } }).response;
-  return response?.data?.message ?? 'Something went wrong. Please try again.';
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    const message = data?.error || data?.message || data?.detail;
+
+    if (message) return message;
+
+    if (!error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
+      return 'Unable to connect to the server. Please check your connection and try again.';
+    }
+  }
+
+  return 'Unable to connect to the server. Please check your connection and try again.';
 }
 
 export default function GoogleSignupCompletePage() {
@@ -51,16 +61,16 @@ export default function GoogleSignupCompletePage() {
     setIsSubmitting(true);
 
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/google/complete-signup', {
+      const response = await apiClient.post('/auth/google/complete-signup', {
         pendingToken: googleProfile.pendingToken,
         username: values.username,
       });
 
       localStorage.setItem('readify_token', response.data.token);
-      toast.success('Account created successfully.');
+      showSuccess('Account created successfully.');
       navigate('/');
     } catch (error) {
-      toast.error(extractErrorMessage(error));
+      showError(extractErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }

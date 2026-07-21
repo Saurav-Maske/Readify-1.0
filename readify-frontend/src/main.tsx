@@ -5,6 +5,7 @@ import App from './App';
 import './index.css';
 
 const rootElement = document.getElementById('root');
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 if (!rootElement) {
   throw new Error('Root element not found. Make sure index.html contains <div id="root"></div>.');
@@ -12,8 +13,12 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''}>
+    {googleClientId ? (
+      <GoogleOAuthProvider clientId={googleClientId}>
+        <App />
+      </GoogleOAuthProvider>
+    ) : (
       <App />
-    </GoogleOAuthProvider>
+    )}
   </StrictMode>
 );

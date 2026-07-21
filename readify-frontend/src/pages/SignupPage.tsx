@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import toast from 'react-hot-toast';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import axios from 'axios';
 import { AuthLayout } from '../components/layout/AuthLayout';
-import { GoogleButton } from '../components/auth/GoogleButton';
 import { Divider } from '../components/ui/Divider';
 import { Input } from '../components/ui/Input';
 import { PasswordInput } from '../components/auth/PasswordInput';
@@ -13,20 +13,26 @@ import { UsernameField } from '../components/auth/UsernameField';
 import { Button } from '../components/ui/Button';
 import { signupSchema, type SignupSchema } from '../lib/validation/authSchemas';
 import apiClient from '../lib/api';
-import type { AuthResponse, RegisterPayload } from '../types/auth';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
-const GOOGLE_OAUTH_URL = `${API_BASE_URL}/auth/google`;
+import { showError, showSuccess, showWarning } from '../lib/popup';
 
 function extractErrorMessage(error: unknown): string {
-  const response = (error as { response?: { data?: { message?: string } } }).response;
-  return response?.data?.message ?? 'Something went wrong. Please try again.';
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    const message = data?.error || data?.message || data?.detail;
+
+    if (message) return message;
+
+    if (!error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
+      return 'Unable to connect to the server. Please check your connection and try again.';
+    }
+  }
+
+  return 'Unable to connect to the server. Please check your connection and try again.';
 }
 
 export default function SignupPage() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const {
     register,
@@ -53,28 +59,52 @@ export default function SignupPage() {
     setIsSubmitting(true);
 
     try {
-      const payload: RegisterPayload = {
+      const payload = {
         name: values.fullName,
         username: values.username,
-        email: values.email,
+        gmail: values.email,
         password: values.password,
       };
 
-      const response = await apiClient.post<AuthResponse>('/auth/register', payload);
-
-      localStorage.setItem('readify_token', response.data.token);
-      toast.success('Account created successfully.');
-      navigate('/home');
+      await apiClient.post('/auth/signup', payload);
+      showSuccess('OTP sent to email. Verify to complete signup.');
+      navigate('/verify-otp', { state: { gmail: values.email } });
     } catch (error) {
-      toast.error(extractErrorMessage(error));
+      showError(extractErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleGoogleSignup = () => {
-    setIsGoogleLoading(true);
-    window.location.href = GOOGLE_OAUTH_URL;
+  const handleGoogleSuccess = async (cred: CredentialResponse) => {
+    try {
+      const response = await apiClient.post('/auth/google', { idToken: cred.credential });
+
+      if (response.data.token) {
+        localStorage.setItem('readify_token', response.data.token);
+        showSuccess('Logged in successfully.');
+        navigate('/');
+        return;
+      }
+
+      if (response.data.needsUsername) {
+        showWarning('Complete your Google signup by choosing a username.');
+        navigate('/signup/complete-profile', {
+          state: {
+            pendingToken: response.data.pendingToken,
+            name: response.data.name,
+            email: response.data.gmail,
+          },
+        });
+      }
+    } catch (error) {
+      showError(extractErrorMessage(error));
+    }
+  };
+
+  const handleGoogleError = () => {
+    const message = 'Unable to connect to the server. Please check your connection and try again.';
+    showError(message);
   };
 
   return (
@@ -84,7 +114,11 @@ export default function SignupPage() {
         <p className="mt-1.5 text-sm text-textSecondary">Start your personalized reading journey.</p>
       </div>
 
-      <GoogleButton onClick={handleGoogleSignup} isLoading={isGoogleLoading} />
+      <GoogleLogin
+        onSuccess={handleGoogleSuccess}
+        onError={handleGoogleError}
+        useOneTap
+      />
 
       <div className="my-6">
         <Divider label="or" />
@@ -150,7 +184,7 @@ export default function SignupPage() {
       <p className="mt-8 text-center text-sm text-textSecondary">
         Already have an account?{' '}
         <Link to="/login" className="font-semibold text-primary hover:underline">
-          Sign in
+          Log in
         </Link>
       </p>
     </AuthLayout>

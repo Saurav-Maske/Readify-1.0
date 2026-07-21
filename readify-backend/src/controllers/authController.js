@@ -206,9 +206,12 @@ async function login(req, res, next) {
     }
 
     const user = await userModel.findByGmail(gmail);
-    if (!user || !user.password) {
+    if(!user) {
+      return res.status(401).json({ error: 'No account associated with this gmail.' });
+    }
+    if (!user.password) {
       // either no account, or account was created via Google-only signup
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Google account found, but no local password set.' });
     }
 
     const isMatch = await comparePassword(password, user.password);

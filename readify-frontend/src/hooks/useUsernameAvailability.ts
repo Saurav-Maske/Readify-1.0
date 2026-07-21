@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/api';
-import type { UsernameAvailabilityResponse } from '../types/auth';
 
 export type UsernameCheckStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -32,7 +31,7 @@ export function useUsernameAvailability(username: string): UseUsernameAvailabili
 
     const timeoutId = window.setTimeout(() => {
       apiClient
-        .get<UsernameAvailabilityResponse>('/auth/check-username', {
+        .get('/auth/check-username', {
           params: { username: trimmed },
         })
         .then((response) => {
@@ -45,7 +44,7 @@ export function useUsernameAvailability(username: string): UseUsernameAvailabili
             setSuggestions([]);
           } else {
             setStatus('taken');
-            setSuggestions(response.data.suggestions ?? []);
+            setSuggestions([]);
           }
         })
         .catch(() => {

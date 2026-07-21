@@ -6,30 +6,14 @@ export interface GoogleProfile {
 
 export interface UsernameAvailabilityResponse {
   available: boolean;
-  suggestions: string[];
-}
-
-export interface RegisterPayload {
-  name: string;
-  username: string;
-  email: string;
-  password: string;
-}
-
-export interface GoogleRegisterPayload {
-  name: string;
-  username: string;
-  email: string;
-  password: string;
-  provider: 'google';
+  reason?: string;
 }
 
 export interface AuthUser {
-  id: string;
+  userId: string;
   name: string;
   username: string;
-  email: string;
-  avatarUrl?: string;
+  gmail: string;
 }
 
 export interface AuthResponse {

@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import SignupPage from './pages/SignupPage';
 import GoogleSignupCompletePage from './pages/GoogleSignupCompletePage';
 import LoginPage from './pages/LoginPage';
+import OtpVerificationPage from './pages/OtpVerificationPage';
 import Home from './pages/home';
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/verify-otp" element={<OtpVerificationPage />} />
         <Route path="/signup/complete-profile" element={<GoogleSignupCompletePage />} />
       </Routes>
     </BrowserRouter>
