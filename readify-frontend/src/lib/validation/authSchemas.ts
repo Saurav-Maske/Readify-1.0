@@ -16,7 +16,7 @@ const usernameField = z
   .max(20, 'Username must be under 20 characters')
   .regex(USERNAME_REGEX, 'Username can only contain letters, numbers, and underscores');
 
-const passwordField = z
+export const passwordField = z
   .string()
   .min(8, 'Password must be at least 8 characters')
   .regex(PASSWORD_RULES.uppercase, 'Include at least one uppercase letter')
@@ -47,10 +47,20 @@ export const googleSignupCompleteSchema = z.object({
   username: usernameField,
 });
 
-  export const loginSchema = z.object({
+export const resetPasswordSchema = z
+  .object({
+    password: passwordField,
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+export const loginSchema = z.object({
   gmail: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
 });
 
-
 export type GoogleSignupCompleteSchema = z.infer<typeof googleSignupCompleteSchema>;
+export type ResetPasswordSchema = z.infer<typeof resetPasswordSchema>;

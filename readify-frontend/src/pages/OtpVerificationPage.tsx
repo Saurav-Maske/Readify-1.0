@@ -31,13 +31,25 @@ export default function OtpVerificationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
 
+  const flow = useMemo(() => {
+    const state = location.state as { flow?: 'signup' | 'forgot-password'; gmail?: string; newPassword?: string } | null;
+    return state?.flow ?? 'signup';
+  }, [location.state]);
+
   const gmail = useMemo(() => {
-    const state = location.state as { gmail?: string } | null;
+    const state = location.state as { flow?: 'signup' | 'forgot-password'; gmail?: string; newPassword?: string } | null;
     return state?.gmail ?? '';
   }, [location.state]);
 
+  const newPassword = useMemo(() => {
+    const state = location.state as { flow?: 'signup' | 'forgot-password'; gmail?: string; newPassword?: string } | null;
+    return state?.newPassword ?? '';
+  }, [location.state]);
+
+  const isForgotPasswordFlow = flow === 'forgot-password';
+
   if (!gmail) {
-    navigate('/signup', { replace: true });
+    navigate(isForgotPasswordFlow ? '/forgot-password' : '/signup', { replace: true });
     return null;
   }
 
@@ -51,6 +63,14 @@ export default function OtpVerificationPage() {
 
     try {
       setSubmitting(true);
+
+      if (isForgotPasswordFlow) {
+        await apiClient.post('/auth/verify-reset-otp', { gmail, otp });
+        showSuccess('Password updated successfully. Please log in.');
+        navigate('/login');
+        return;
+      }
+
       const response = await apiClient.post('/auth/verify-otp', { gmail, otp });
       localStorage.setItem('readify_token', response.data.token);
       showSuccess('Account verified successfully.');
@@ -65,6 +85,13 @@ export default function OtpVerificationPage() {
   const handleResend = async () => {
     try {
       setResending(true);
+
+      if (isForgotPasswordFlow) {
+        await apiClient.post('/auth/forgot-password', { gmail, newPassword });
+        showSuccess('A new OTP has been sent to your email.');
+        return;
+      }
+
       await apiClient.post('/auth/resend-otp', { gmail });
       showSuccess('A new OTP has been sent to your email.');
     } catch (error) {
@@ -77,7 +104,9 @@ export default function OtpVerificationPage() {
   return (
     <AuthLayout>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-text">Verify your email</h2>
+        <h2 className="text-2xl font-bold text-text">
+          {isForgotPasswordFlow ? 'Confirm the reset code' : 'Verify your email'}
+        </h2>
         <p className="mt-1.5 text-sm text-textSecondary">
           We sent a 6-digit code to <span className="font-semibold text-primary">{gmail}</span>.
         </p>
@@ -93,7 +122,7 @@ export default function OtpVerificationPage() {
         />
 
         <Button type="submit" isLoading={submitting}>
-          Verify OTP
+          {isForgotPasswordFlow ? 'Verify OTP & update password' : 'Verify OTP'}
         </Button>
       </form>
 
@@ -107,8 +136,8 @@ export default function OtpVerificationPage() {
           {resending ? 'Resending...' : 'Resend OTP'}
         </button>
 
-        <Link to="/signup" className="font-semibold text-textSecondary hover:underline">
-          Back to signup
+        <Link to={isForgotPasswordFlow ? '/forgot-password' : '/signup'} className="font-semibold text-textSecondary hover:underline">
+          {isForgotPasswordFlow ? 'Back to reset' : 'Back to signup'}
         </Link>
       </div>
     </AuthLayout>
