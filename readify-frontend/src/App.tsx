@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage';
 import OtpVerificationPage from './pages/OtpVerificationPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import Home from './pages/home';
+import QuestionsPage from './pages/QuestionsPage';
+import Feed from './pages/feed';
 
 export default function App() {
   return (
@@ -14,10 +16,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/questions" element={<QuestionsPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-otp" element={<OtpVerificationPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/signup/complete-profile" element={<GoogleSignupCompletePage />} />
+        <Route path="/feed" element={<Feed/>}/>
       </Routes>
     </BrowserRouter>
   );

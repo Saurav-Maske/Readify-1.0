@@ -68,7 +68,7 @@ export default function GoogleSignupCompletePage() {
 
       localStorage.setItem('readify_token', response.data.token);
       showSuccess('Account created successfully.');
-      navigate('/');
+      navigate('/question');
     } catch (error) {
       showError(extractErrorMessage(error));
     } finally {
