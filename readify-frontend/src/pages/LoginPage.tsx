@@ -46,7 +46,7 @@ export default function LoginPage() {
       if (res.data.token) {
         localStorage.setItem("readify_token", res.data.token);
         showSuccess("Logged in successfully.");
-        navigate("/");
+        navigate("/feed");
         return;
       }
 

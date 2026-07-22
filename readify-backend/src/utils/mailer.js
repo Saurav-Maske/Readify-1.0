@@ -21,8 +21,8 @@ async function sendOtpEmail(toEmail, otp) {
               <tr>
                 <td style="padding:28px 28px 18px;">
                   <div style="display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,0.12);padding:8px 12px;border-radius:999px;color:#ffffff;font-size:12px;font-weight:700;letter-spacing:0.6px;">
-                    <span>📚</span> READIFY
-                  </div>
+                    READIFY
+                  </div> 
                 </td>
               </tr>
               <tr>

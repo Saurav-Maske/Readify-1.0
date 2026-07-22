@@ -83,7 +83,7 @@ export default function SignupPage() {
       if (response.data.token) {
         localStorage.setItem('readify_token', response.data.token);
         showSuccess('Logged in successfully.');
-        navigate('/');
+        navigate('questions');
         return;
       }
 
