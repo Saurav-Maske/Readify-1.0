@@ -17,6 +17,9 @@ module.exports = {
       gmail VARCHAR(150) UNIQUE NOT NULL,
       password TEXT,               -- null for accounts created via Google only
       google_id VARCHAR(100) UNIQUE, -- null for accounts created via local signup only
+      profile_picture TEXT,        -- empty until the user sets one from their profile page
+      bio TEXT,                    -- empty until the user sets one from their profile page
+      is_first_login BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMP DEFAULT NOW()
     );`,
     // Case-insensitive uniqueness: "JaneDoe" and "janedoe" are treated as the

@@ -14,7 +14,7 @@ const schemas = require('./schema');
 async function initDb() {
   for (const schema of schemas) {
     if (schema.temporary) {
-      await pool.query(`DROP TABLE IF EXISTS ${schema.name} CASCADE;`);
+      await pool.query(`DROP TABLE IF EXISTS ${schema.name};`);
     }
 
     for (const statement of schema.sql) {
@@ -22,11 +22,11 @@ async function initDb() {
     }
 
     console.log(
-      `${schema.name} ready${schema.temporary ? ' (reset)' : ' (created if missing)'}`
+      `✅ ${schema.name} ready${schema.temporary ? ' (reset)' : ' (created if missing)'}`
     );
   }
 
-  console.log('Database initialization complete.');
+  console.log('✅ Database initialization complete.');
 }
 
 module.exports = initDb;

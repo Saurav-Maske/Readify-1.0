@@ -2,6 +2,7 @@ require('dotenv').config();
 const os = require('os');
 const app = require('./app');
 const initDb = require('./db/init');
+const { startQuoteLikeCleanupJob } = require('./jobs/cleanupQuoteLikes');
 
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = '0.0.0.0';
@@ -40,6 +41,7 @@ function startServer(port, host) {
 (async () => {
   try {
     await initDb(); // ensure tables exists + resets temp_users
+    startQuoteLikeCleanupJob(); //ensure cleanup job is started after db is initialized
     app.locals.dbReady = true;
     startServer(PORT, HOST);
   } catch (err) {
