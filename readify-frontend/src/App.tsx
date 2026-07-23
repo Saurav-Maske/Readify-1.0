@@ -8,6 +8,9 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import Home from './pages/home';
 import QuestionsPage from './pages/QuestionsPage';
 import Feed from './pages/feed';
+import BookPage from './pages/BookPage';
+import UserPage from './pages/UserPage';
+
 
 export default function App() {
   return (
@@ -22,6 +25,8 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/signup/complete-profile" element={<GoogleSignupCompletePage />} />
         <Route path="/feed" element={<Feed/>}/>
+        <Route path="/books" element={<BookPage />} />
+<Route path="/users" element={<UserPage />} />
       </Routes>
     </BrowserRouter>
   );
