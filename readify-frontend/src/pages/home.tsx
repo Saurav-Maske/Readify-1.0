@@ -78,7 +78,7 @@ export default function Home() {
                                 </div>
 
                                 <div>
-                                    <h3 className="font-bold text-xl">
+                                    <h3 className="font-bold text-xl text-gray-900">
                                         Smart Recommendations
                                     </h3>
                                     <p className="text-gray-500 mt-2">
@@ -94,7 +94,7 @@ export default function Home() {
                                 </div>
 
                                 <div>
-                                    <h3 className="font-bold text-xl">
+                                    <h3 className="font-bold text-xl text-gray-900">
                                         Community Reviews
                                     </h3>
                                     <p className="text-gray-500 mt-2">
@@ -110,7 +110,7 @@ export default function Home() {
                                 </div>
 
                                 <div>
-                                    <h3 className="font-bold text-xl">
+                                    <h3 className="font-bold text-xl text-gray-900">
                                         Track Your Reading
                                     </h3>
                                     <p className="text-gray-500 mt-2">
