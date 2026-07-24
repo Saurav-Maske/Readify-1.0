@@ -52,12 +52,20 @@ async function updatePasswordByGmail(gmail, hashedPassword) {
 }
 
 async function updateProfile(userId, { bio, profilePicture }) {
+  // Use COALESCE so that only the fields actually provided are changed.
+  // If bio is undefined/null the existing bio is kept, same for profilePicture.
   const { rows } = await pool.query(
     `UPDATE users
-     SET bio = $1, profile_picture = $2
+     SET
+       bio             = COALESCE($1, bio),
+       profile_picture = COALESCE($2, profile_picture)
      WHERE user_id = $3
      RETURNING *`,
-    [bio, profilePicture, userId]
+    [
+      bio ?? null,
+      profilePicture ?? null,
+      userId,
+    ]
   );
   return rows[0] || null;
 }

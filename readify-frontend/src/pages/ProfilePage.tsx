@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ChangeEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useParams } from 'react-router-dom';
@@ -8,6 +8,14 @@ import { PlusIcon } from '../components/icons';
 import { Avatar } from '../components/ui/Avatar';
 import type { CreateEntryPayload, FeedComment, FeedItem } from '../types/feed';
 import apiClient from '../lib/api';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ?? 'http://localhost:4000';
+
+function resolveProfilePicture(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('http')) return url;
+  return `${API_BASE}${url}`;
+}
 
 interface BackendUser {
   userId: number;
@@ -80,8 +88,28 @@ export default function ProfilePage() {
   const [profilePictureDraft, setProfilePictureDraft] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // Modal state for followers/following lists
   const [activeModal, setActiveModal] = useState<'followers' | 'following' | null>(null);
+
+  // Photo editor state
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowed.includes(file.type)) {
+      toast.error('Only JPEG, PNG, WEBP, or GIF images are allowed');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be 5MB or smaller');
+      return;
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
 
   useEffect(() => {
     let isCurrentRequest = true;
@@ -130,21 +158,48 @@ export default function ProfilePage() {
   const currentUserName = viewer?.name ?? profile?.user.name ?? '';
   const isOwnProfile = profile?.isOwnProfile ?? false;
 
-  const handleSaveProfile = async (event: FormEvent) => {
+  // Save bio only
+  const handleSaveBio = async (event: FormEvent) => {
     event.preventDefault();
     if (!isOwnProfile || isSavingProfile) return;
-
     setIsSavingProfile(true);
     try {
-      const response = await apiClient.put<{ user: BackendUser }>('/users/me/profile', {
-        bio: bioDraft,
-        profilePicture: profilePictureDraft,
+      const formData = new FormData();
+      formData.append('bio', bioDraft);
+      const response = await apiClient.patch<{ user: BackendUser }>('/users/me', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setProfile((current) => (current ? { ...current, user: response.data.user } : current));
+      setBioDraft(response.data.user.bio ?? '');
       setActiveProfileEditor(null);
-      toast.success('Profile updated');
+      toast.success('Bio updated!');
     } catch {
-      toast.error('Unable to update your profile');
+      toast.error('Unable to update bio. Please try again.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // Save profile picture only
+  const handleSavePhoto = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!isOwnProfile || isSavingProfile || !photoFile) return;
+    setIsSavingProfile(true);
+    try {
+      const formData = new FormData();
+      formData.append('profilePicture', photoFile);
+      const response = await apiClient.patch<{ user: BackendUser }>('/users/me', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setProfile((current) => (current ? { ...current, user: response.data.user } : current));
+      setViewer((current) => (current ? { ...current, profilePicture: response.data.user.profilePicture } : current));
+      setPhotoFile(null);
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+      setPhotoPreview(null);
+      setActiveProfileEditor(null);
+      toast.success('Profile photo updated!');
+    } catch {
+      toast.error('Unable to update profile photo. Please try again.');
     } finally {
       setIsSavingProfile(false);
     }
@@ -272,7 +327,7 @@ export default function ProfilePage() {
           <div className="flex items-start gap-6 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-6 shadow-sm">
             <Avatar
               name={profile.user.name}
-              src={profile.user.profilePicture ?? undefined}
+              src={photoPreview ?? resolveProfilePicture(profile.user.profilePicture)}
               size="lg"
               className="h-24 w-24 border-2 border-white text-2xl shadow-md"
             />
@@ -300,25 +355,60 @@ export default function ProfilePage() {
               </div>
               <p className="text-sm text-textSecondary dark:text-textSecondary-dark">@{profile.user.username}</p>
               {isOwnProfile && activeProfileEditor === 'photo' && (
-                <form onSubmit={handleSaveProfile} className="max-w-lg space-y-2 pt-1">
+                <form onSubmit={handleSavePhoto} className="max-w-lg space-y-3 pt-1">
+                  {/* Hidden native file input */}
                   <input
-                    type="url"
-                    value={profilePictureDraft}
-                    onChange={(event) => setProfilePictureDraft(event.target.value)}
-                    placeholder="Profile picture URL"
-                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-text dark:text-text-dark focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handlePhotoFileChange}
                   />
+
+                  {/* Preview + pick button */}
+                  <div className="flex items-center gap-4">
+                    {photoPreview ? (
+                      <img
+                        src={photoPreview}
+                        alt="Preview"
+                        className="h-16 w-16 rounded-full object-cover border-2 border-primary"
+                      />
+                    ) : (
+                      <div className="h-16 w-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-textSecondary dark:text-textSecondary-dark text-xs">
+                        No file
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-semibold text-textSecondary dark:text-textSecondary-dark hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      {photoFile ? 'Choose different file' : 'Choose file…'}
+                    </button>
+                  </div>
+
+                  {photoFile && (
+                    <p className="text-xs text-textSecondary dark:text-textSecondary-dark">
+                      {photoFile.name} · {(photoFile.size / 1024).toFixed(0)} KB
+                    </p>
+                  )}
+
                   <div className="flex gap-2">
                     <button
                       type="submit"
-                      disabled={isSavingProfile}
+                      disabled={isSavingProfile || !photoFile}
                       className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSavingProfile ? 'Saving...' : 'Save photo'}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveProfileEditor(null)}
+                      onClick={() => {
+                        setActiveProfileEditor(null);
+                        setPhotoFile(null);
+                        if (photoPreview) URL.revokeObjectURL(photoPreview);
+                        setPhotoPreview(null);
+                      }}
                       className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-semibold text-textSecondary dark:text-textSecondary-dark hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       Cancel
@@ -327,7 +417,7 @@ export default function ProfilePage() {
                 </form>
               )}
               {isOwnProfile && activeProfileEditor === 'bio' && (
-                <form onSubmit={handleSaveProfile} className="max-w-lg space-y-2 pt-1">
+                <form onSubmit={handleSaveBio} className="max-w-lg space-y-2 pt-1">
                   <textarea
                     value={bioDraft}
                     onChange={(event) => setBioDraft(event.target.value)}
