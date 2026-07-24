@@ -95,7 +95,7 @@ export default function LoginPage() {
 
       if (token) localStorage.setItem("readify_token", token);
       showSuccess("Logged in successfully.");
-      navigate(res.data.onboardingComplete ? '/' : '/questions');
+      navigate(res.data.onboardingComplete ? '/feed' : '/questions');
     } catch (err: unknown) {
       const message = getFriendlyErrorMessage(err);
       setServerError(message);
