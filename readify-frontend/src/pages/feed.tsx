@@ -13,9 +13,10 @@ import type { CreateEntryPayload, FeedComment, FeedItem } from '../types/feed';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (hour >= 5 && hour < 12) return 'Good morning';
+  if (hour >= 12 && hour < 17) return 'Good afternoon';
+  if (hour >= 17 && hour < 22) return 'Good evening';
+  return 'Good night';
 }
 
 export default function Feed() {
@@ -118,10 +119,10 @@ export default function Feed() {
     <div className="w-full">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text">
+          <h1 className="text-2xl font-bold text-text dark:text-text-dark">
             {getGreeting()}, {CURRENT_USER.name}
           </h1>
-          <p className="mt-1 text-sm text-textSecondary">Here's what your reading community is sharing</p>
+          <p className="mt-1 text-sm text-textSecondary dark:text-textSecondary-dark">Here's what your reading community is sharing</p>
         </div>
 
         <button
@@ -151,9 +152,9 @@ export default function Feed() {
         </AnimatePresence>
 
         {items.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-card p-10 text-center">
-            <p className="text-sm font-medium text-text">No posts yet</p>
-            <p className="mt-1 text-sm text-textSecondary">Be the first to share what you're reading.</p>
+          <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-card dark:bg-card-dark p-10 text-center">
+            <p className="text-sm font-medium text-text dark:text-text-dark">No posts yet</p>
+            <p className="mt-1 text-sm text-textSecondary dark:text-textSecondary-dark">Be the first to share what you're reading.</p>
           </div>
         )}
       </div>

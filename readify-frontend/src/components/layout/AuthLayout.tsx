@@ -8,7 +8,7 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ children }: AuthLayoutProps) {
   return (
-    <div className="flex min-h-screen w-full bg-background font-sans">
+    <div className="auth-scope flex min-h-screen w-full bg-background font-sans">
       <div className="relative hidden w-[45%] flex-col justify-between overflow-hidden bg-gradient-to-br from-[#5A4EF8] via-[#5546E8] to-[#4338CA] px-12 py-10 text-white lg:flex">
         <Logo />
 

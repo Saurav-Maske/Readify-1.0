@@ -50,7 +50,7 @@ export function FeedItemCard({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="rounded-2xl border border-gray-100 bg-card p-5 shadow-sm"
+            className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-5 shadow-sm"
         >
             <div className="flex items-start gap-3">
                 <Link to={`/users?id=${item.author.id}`}>
@@ -59,10 +59,10 @@ export function FeedItemCard({
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-x-2">
-                            <Link to={`/users?id=${item.author.id}`} className="font-semibold text-text hover:underline">
+                            <Link to={`/users?id=${item.author.id}`} className="font-semibold text-text dark:text-text-dark hover:underline">
                                 {item.author.name}
                             </Link>
-                            <Link to={`/users?id=${item.author.id}`} className="text-sm text-textSecondary hover:underline">
+                            <Link to={`/users?id=${item.author.id}`} className="text-sm text-textSecondary dark:text-textSecondary-dark hover:underline">
                                 @{item.author.username}
                             </Link>
                             {item.type === 'review' && item.isAiPick && (
@@ -72,20 +72,20 @@ export function FeedItemCard({
                                 </span>
                             )}
                             {item.visibility === 'private' && (
-                                <span className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-textSecondary">
+                                <span className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-textSecondary dark:text-textSecondary-dark">
                                     <LockIcon className="h-3 w-3" />
                                     Private
                                 </span>
                             )}
                             {item.visibility === 'only_me' && (
-                                <span className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-textSecondary">
+                                <span className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-textSecondary dark:text-textSecondary-dark">
                                     <EyeOffIcon className="h-3 w-3" />
                                     Only me
                                 </span>
                             )}
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                            <span className="text-xs text-textSecondary">{formatRelativeTime(item.createdAt)}</span>
+                            <span className="text-xs text-textSecondary dark:text-textSecondary-dark">{formatRelativeTime(item.createdAt)}</span>
 
                             {canDelete && (
                                 <DropdownMenu trigger={<MoreHorizontalIcon className="h-4 w-4" />}>
@@ -110,7 +110,7 @@ export function FeedItemCard({
                     {item.book && (
                         <Link
                             to={`/books?id=${item.book.id}`}
-                            className="mt-3 flex items-center gap-3 rounded-xl bg-background p-3 transition-colors duration-150 hover:bg-gray-100"
+                            className="mt-3 flex items-center gap-3 rounded-xl bg-background dark:bg-background-dark p-3 transition-colors duration-150 hover:bg-gray-100 dark:hover:bg-gray-800"
                         >
                             {item.book.coverUrl ? (
                                 <img
@@ -127,8 +127,8 @@ export function FeedItemCard({
                                 </div>
                             )}
                             <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-text">{item.book.title}</p>
-                                <p className="truncate text-xs text-textSecondary">{item.book.author}</p>
+                                <p className="truncate text-sm font-semibold text-text dark:text-text-dark">{item.book.title}</p>
+                                <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">{item.book.author}</p>
                                 <div className="mt-1">
                                     <StarRating value={item.book.rating} />
                                 </div>
@@ -136,9 +136,9 @@ export function FeedItemCard({
                         </Link>
                     )}
 
-                    <p className="mt-3 whitespace-pre-wrap text-sm text-text">{item.content}</p>
+                    <p className="mt-3 whitespace-pre-wrap text-sm text-text dark:text-text-dark">{item.content}</p>
 
-                    <div className="mt-4 flex items-center gap-6 text-textSecondary">
+                    <div className="mt-4 flex items-center gap-6 text-textSecondary dark:text-textSecondary-dark">
                         <motion.button
                             type="button"
                             onClick={() => onToggleLike(item.id)}

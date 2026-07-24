@@ -21,8 +21,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           {label}
         </label>
         <div
-          className={`relative flex items-center rounded-xl border bg-white transition-all duration-150 focus-within:scale-[1.01] focus-within:shadow-sm ${
-            error ? 'border-error' : 'border-gray-200 focus-within:border-primary'
+          className={`relative flex items-center rounded-xl border bg-white dark:bg-gray-900 transition-all duration-150 focus-within:scale-[1.01] focus-within:shadow-sm ${
+            error ? 'border-error' : 'border-gray-200 dark:border-gray-700 focus-within:border-primary'
           }`}
         >
           <input

@@ -16,7 +16,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const isFeedPage = location.pathname === '/' || location.pathname === '/feed';
 
   return (
-    <div className="min-h-screen bg-background flex w-full">
+    <div className="min-h-screen bg-background dark:bg-background-dark flex w-full transition-colors duration-200">
       {/* Left Sidebar (Only rendered here) */}
       <Sidebar />
 
@@ -27,7 +27,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Right Sidebar Widgets - Visible ONLY on the Feed page */}
       {isFeedPage && (
-        <aside className="hidden xl:block w-80 p-6 space-y-6 sticky top-0 h-screen overflow-y-auto border-l border-gray-100 shrink-0">
+        <aside className="hidden xl:block w-80 p-6 space-y-6 sticky top-0 h-screen overflow-y-auto border-l border-gray-100 dark:border-gray-800 shrink-0">
           <AiPickCard pick={MOCK_AI_PICK} />
           <TrendingCard books={MOCK_TRENDING_BOOKS} />
           <ReadersToFollowCard readers={MOCK_SUGGESTED_READERS} />
@@ -37,4 +37,4 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   );
 }
 
-export default DashboardLayout;
+export default DashboardLayout;
