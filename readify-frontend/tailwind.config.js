@@ -7,10 +7,22 @@ export default {
       colors: {
         primary: '#5B5CEB',
         secondary: '#7C83FD',
-        background: '#FAFAFC',
-        card: '#FFFFFF',
-        text: '#111827',
-        textSecondary: '#6B7280',
+        background: {
+          DEFAULT: '#FAFAFC',
+          dark: '#0F1117',
+        },
+        card: {
+          DEFAULT: '#FFFFFF',
+          dark: '#1A1D27',
+        },
+        text: {
+          DEFAULT: '#111827',
+          dark: '#F1F5F9',
+        },
+        textSecondary: {
+          DEFAULT: '#6B7280',
+          dark: '#94A3B8',
+        },
         success: '#22C55E',
         error: '#EF4444',
       },

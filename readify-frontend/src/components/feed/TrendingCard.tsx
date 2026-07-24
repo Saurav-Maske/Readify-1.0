@@ -8,23 +8,23 @@ interface TrendingCardProps {
 
 export function TrendingCard({ books }: TrendingCardProps) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-card p-5 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text">
+    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-5 shadow-sm">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text dark:text-text-dark">
         <TrendingUpIcon className="h-4 w-4 text-primary" />
         Trending This Week
       </div>
 
-      <ul className="divide-y divide-gray-100">
+      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
         {books.map((book) => (
           <li key={book.id}>
             <Link
               to={`/books?id=${book.id}`}
-              className="flex items-center gap-3 py-2.5 transition-colors duration-150 hover:bg-gray-50"
+              className="flex items-center gap-3 py-2.5 transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               <span className="w-4 text-sm font-semibold text-gray-300">{book.rank}</span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-text">{book.title}</p>
-                <p className="truncate text-xs text-textSecondary">{book.author}</p>
+                <p className="truncate text-sm font-medium text-text dark:text-text-dark">{book.title}</p>
+                <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">{book.author}</p>
               </div>
             </Link>
           </li>

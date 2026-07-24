@@ -7,4 +7,35 @@
     @apply bg-background text-text antialiased;
     font-family: 'Inter', system-ui, sans-serif;
   }
+
+  /* Dark mode overrides */
+  .dark body {
+    @apply bg-background-dark text-text-dark;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  /* Force light theme on auth screens (Login, Signup, etc.) */
+  .auth-scope,
+  .auth-scope * {
+    color-scheme: light;
+  }
+  .auth-scope .dark\:bg-gray-900,
+  .auth-scope .dark\:bg-card-dark,
+  .auth-scope .dark\:bg-background-dark {
+    background-color: #ffffff !important;
+  }
+  .auth-scope .dark\:text-text-dark {
+    color: #111827 !important;
+  }
+  .auth-scope .dark\:text-textSecondary-dark {
+    color: #6b7280 !important;
+  }
+  .auth-scope .dark\:border-gray-700,
+  .auth-scope .dark\:border-gray-800 {
+    border-color: #e5e7eb !important;
+  }
 }
+

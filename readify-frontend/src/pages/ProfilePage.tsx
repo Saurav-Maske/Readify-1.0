@@ -269,7 +269,7 @@ export default function ProfilePage() {
       {!isLoading && profile && (
         <>
           {/* Profile Header */}
-          <div className="flex items-start gap-6 rounded-2xl border border-gray-100 bg-card p-6 shadow-sm">
+          <div className="flex items-start gap-6 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-6 shadow-sm">
             <Avatar
               name={profile.user.name}
               src={profile.user.profilePicture ?? undefined}
@@ -278,27 +278,27 @@ export default function ProfilePage() {
             />
             <div className="flex-1 space-y-2">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-bold text-text">{profile.user.name}</h1>
+                <h1 className="text-2xl font-bold text-text dark:text-text-dark">{profile.user.name}</h1>
                 {isOwnProfile && (
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setActiveProfileEditor((current) => (current === 'photo' ? null : 'photo'))}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-textSecondary hover:bg-gray-50"
+                      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-semibold text-textSecondary dark:text-textSecondary-dark hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       {activeProfileEditor === 'photo' ? 'Cancel photo' : 'Change photo'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveProfileEditor((current) => (current === 'bio' ? null : 'bio'))}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-textSecondary hover:bg-gray-50"
+                      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-semibold text-textSecondary dark:text-textSecondary-dark hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       {activeProfileEditor === 'bio' ? 'Cancel bio' : 'Edit bio'}
                     </button>
                   </div>
                 )}
               </div>
-              <p className="text-sm text-textSecondary">@{profile.user.username}</p>
+              <p className="text-sm text-textSecondary dark:text-textSecondary-dark">@{profile.user.username}</p>
               {isOwnProfile && activeProfileEditor === 'photo' && (
                 <form onSubmit={handleSaveProfile} className="max-w-lg space-y-2 pt-1">
                   <input
@@ -306,7 +306,7 @@ export default function ProfilePage() {
                     value={profilePictureDraft}
                     onChange={(event) => setProfilePictureDraft(event.target.value)}
                     placeholder="Profile picture URL"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-text dark:text-text-dark focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                   <div className="flex gap-2">
                     <button
@@ -319,7 +319,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => setActiveProfileEditor(null)}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-textSecondary hover:bg-gray-50"
+                      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-semibold text-textSecondary dark:text-textSecondary-dark hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       Cancel
                     </button>
@@ -333,7 +333,7 @@ export default function ProfilePage() {
                     onChange={(event) => setBioDraft(event.target.value)}
                     maxLength={500}
                     placeholder="Tell readers about yourself..."
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-text dark:text-text-dark focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     rows={3}
                   />
                   <div className="flex gap-2">
@@ -347,7 +347,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => setActiveProfileEditor(null)}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-textSecondary hover:bg-gray-50"
+                      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-semibold text-textSecondary dark:text-textSecondary-dark hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       Cancel
                     </button>
@@ -355,7 +355,7 @@ export default function ProfilePage() {
                 </form>
               )}
               {!activeProfileEditor && (
-                <p className="pt-1 text-sm leading-relaxed text-text max-w-lg">
+                <p className="pt-1 text-sm leading-relaxed text-text dark:text-text-dark max-w-lg">
                   {profile.user.bio?.trim() ? profile.user.bio : 'No bio available right now.'}
                 </p>
               )}
@@ -368,20 +368,20 @@ export default function ProfilePage() {
               onClick={() => setActiveModal('followers')}
               className="hover:opacity-80 transition-opacity text-left"
             >
-              <span className="font-bold text-text">{profile.followersCount}</span>{' '}
-              <span className="text-textSecondary">Followers</span>
+              <span className="font-bold text-text dark:text-text-dark">{profile.followersCount}</span>{' '}
+              <span className="text-textSecondary dark:text-textSecondary-dark">Followers</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveModal('following')}
               className="hover:opacity-80 transition-opacity text-left"
             >
-              <span className="font-bold text-text">{profile.followingCount}</span>{' '}
-              <span className="text-textSecondary">Following</span>
+              <span className="font-bold text-text dark:text-text-dark">{profile.followingCount}</span>{' '}
+              <span className="text-textSecondary dark:text-textSecondary-dark">Following</span>
             </button>
             <div>
-              <span className="font-bold text-text">{posts.length}</span>{' '}
-              <span className="text-textSecondary">Posts</span>
+              <span className="font-bold text-text dark:text-text-dark">{posts.length}</span>{' '}
+              <span className="text-textSecondary dark:text-textSecondary-dark">Posts</span>
             </div>
           </div>
         </div>
@@ -392,7 +392,7 @@ export default function ProfilePage() {
         {/* Left: Posts Section */}
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="border-b-2 border-primary pb-2 text-lg font-bold text-text">Posts</h2>
+            <h2 className="border-b-2 border-primary pb-2 text-lg font-bold text-text dark:text-text-dark">Posts</h2>
             {isOwnProfile && (
               <button
                 type="button"
@@ -422,8 +422,8 @@ export default function ProfilePage() {
             </AnimatePresence>
 
             {posts.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-card p-10 text-center">
-                <p className="text-sm font-medium text-text">No posts available right now.</p>
+              <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-card dark:bg-card-dark p-10 text-center">
+                <p className="text-sm font-medium text-text dark:text-text-dark">No posts available right now.</p>
                 {isOwnProfile && <p className="mt-1 text-sm text-textSecondary">Share your first update by creating a new post.</p>}
               </div>
             )}
@@ -432,9 +432,9 @@ export default function ProfilePage() {
 
         {/* Right: Quotes Section */}
         <div className="lg:col-span-1">
-          <div className="sticky top-6 space-y-4 rounded-2xl border border-gray-100 bg-card p-6 shadow-sm">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="flex items-center gap-2 text-sm font-bold text-text">
+          <div className="sticky top-6 space-y-4 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-text dark:text-text-dark">
                 <span>🎉</span> Quotes
               </h3>
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
@@ -443,19 +443,19 @@ export default function ProfilePage() {
             </div>
 
             {quotes.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-center text-sm text-textSecondary">
+              <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/60 p-4 text-center text-sm text-textSecondary dark:text-textSecondary-dark">
                 No quotes available right now.
               </div>
             ) : (
-              <ul className="max-h-[320px] space-y-3 overflow-y-auto pr-1 text-sm text-text">
+              <ul className="max-h-[320px] space-y-3 overflow-y-auto pr-1 text-sm text-text dark:text-text-dark">
                 {quotes.map((quote, index) => (
                   <li
                     key={index}
-                    className="group relative flex items-start justify-between gap-3 border-b border-gray-50 pb-3 text-xs leading-relaxed last:border-0 last:pb-0"
+                    className="group relative flex items-start justify-between gap-3 border-b border-gray-50 dark:border-gray-800 pb-3 text-xs leading-relaxed last:border-0 last:pb-0"
                   >
                     <div className="flex items-start gap-2">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                      <span className="font-medium italic text-textSecondary">"{quote}"</span>
+                      <span className="font-medium italic text-textSecondary dark:text-textSecondary-dark">"{quote}"</span>
                     </div>
                     <button
                       type="button"
@@ -470,13 +470,13 @@ export default function ProfilePage() {
               </ul>
             )}
 
-            <form onSubmit={handleAddQuote} className="space-y-2 border-t border-gray-100 pt-3">
+            <form onSubmit={handleAddQuote} className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-3">
               <textarea
                 value={newQuoteText}
                 onChange={(e) => setNewQuoteText(e.target.value)}
                 placeholder="Add a memorable quote..."
                 rows={2}
-                className="w-full rounded-xl border border-gray-200 p-2.5 text-xs text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2.5 text-xs text-text dark:text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
               />
               <button
                 type="submit"
@@ -497,16 +497,16 @@ export default function ProfilePage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-2xl bg-card border border-gray-100 shadow-xl overflow-hidden"
+              className="w-full max-w-md rounded-2xl bg-card dark:bg-card-dark border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-                <h3 className="font-bold text-text capitalize">
+              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+                <h3 className="font-bold text-text dark:text-text-dark capitalize">
                   {activeModal} ({activeModal === 'followers' ? profile?.followersCount ?? 0 : profile?.followingCount ?? 0})
                 </h3>
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
-                  className="text-textSecondary hover:text-text font-bold text-lg"
+                  className="text-textSecondary dark:text-textSecondary-dark hover:text-text dark:hover:text-text-dark font-bold text-lg"
                 >
                   &times;
                 </button>
@@ -514,12 +514,12 @@ export default function ProfilePage() {
 
               <div className="max-h-80 overflow-y-auto p-4">
                 {(activeModal === 'followers' && (profile?.followersCount ?? 0) === 0) || (activeModal === 'following' && (profile?.followingCount ?? 0) === 0) ? (
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-sm text-textSecondary">
+                  <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-center text-sm text-textSecondary dark:text-textSecondary-dark">
                     {activeModal === 'followers' ? 'No followers available right now.' : 'No following available right now.'}
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-sm text-textSecondary">
+                    <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-center text-sm text-textSecondary dark:text-textSecondary-dark">
                       {activeModal === 'followers' ? 'Followers will appear here once they are available.' : 'People you follow will appear here once they are available.'}
                     </div>
                   </div>

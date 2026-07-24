@@ -20,7 +20,7 @@ export function CommentSection({ comments, currentUserName, onAddComment }: Comm
   };
 
   return (
-    <div className="mt-4 border-t border-gray-100 pt-4">
+    <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
       <div className="flex items-center gap-2.5">
         <Avatar name={currentUserName} size="sm" />
         <input
@@ -31,7 +31,7 @@ export function CommentSection({ comments, currentUserName, onAddComment }: Comm
             if (event.key === 'Enter') handleSubmit();
           }}
           placeholder="Write a comment..."
-          className="w-full rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-text placeholder:text-textSecondary/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="w-full rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-text dark:text-text-dark placeholder:text-textSecondary/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <button
           type="button"
@@ -44,7 +44,7 @@ export function CommentSection({ comments, currentUserName, onAddComment }: Comm
       </div>
 
       {comments.length === 0 ? (
-        <p className="mt-3 text-center text-xs text-textSecondary">No comments yet. Be the first to reply.</p>
+        <p className="mt-3 text-center text-xs text-textSecondary dark:text-textSecondary-dark">No comments yet. Be the first to reply.</p>
       ) : (
         comments.map((comment) => (
           <CommentThread

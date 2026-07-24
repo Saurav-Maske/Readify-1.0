@@ -23,15 +23,15 @@ export function Modal({ title, onClose, children }: ModalProps) {
         exit={{ opacity: 0, y: 16, scale: 0.98 }}
         transition={{ duration: 0.2 }}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl bg-card p-6 shadow-lg"
+        className="w-full max-w-lg rounded-2xl bg-card dark:bg-card-dark p-6 shadow-lg"
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-text">{title}</h2>
+          <h2 className="text-lg font-bold text-text dark:text-text-dark">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-lg p-1.5 text-textSecondary transition-colors duration-150 hover:bg-gray-100 hover:text-text"
+            className="rounded-lg p-1.5 text-textSecondary dark:text-textSecondary-dark transition-colors duration-150 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-text dark:hover:text-text-dark"
           >
             <CloseIcon className="h-5 w-5" />
           </button>

@@ -117,7 +117,7 @@ export default function QuestionsPage() {
       await apiClient.post('/users/reading-preferences', payload);
 
       toast.success('Thanks! Your preferences are saved.');
-      navigate('/');
+      navigate('/feed');
     } catch (error) {
       toast.error(extractErrorMessage(error));
     } finally {
