@@ -192,6 +192,45 @@ into the real `users` row, and deletes the temp row.
 
 **Errors:** `404` no reset request found · `410` OTP expired · `400` incorrect OTP
 
+---
+
+## Onboarding
+
+### `POST /users/reading-preferences` 🔒 *protected*
+Saves the user's answers to the onboarding questionnaire (shown once,
+right after signup) and marks onboarding as complete for this user.
+
+```json
+{
+  "readerStatus": "returning",
+  "recentBookDuration": "2 weeks",
+  "recentBookPace": "on_time",
+  "genres": ["Fantasy", "Sci-Fi"],
+  "booksRead": "Dune, Project Hail Mary, The Name of the Wind",
+  "favoriteAuthors": "Brandon Sanderson, N.K. Jemisin"
+}
+```
+
+- `readerStatus` — one of `starting` | `active` | `returning`, required.
+- `recentBookDuration` / `recentBookPace` — required unless `readerStatus`
+  is `starting`. Duration accepts a number or number-word plus an optional
+  unit (`"2 weeks"`, `"ten days"`, `"1 month"` — bare numbers are treated
+  as days).
+- `genres` — array of strings, required (can be empty).
+- `booksRead` / `favoriteAuthors` — free text, comma- or newline-separated;
+  split into arrays server-side. Both optional.
+
+Upserts — calling this again (e.g. from an "edit preferences" screen)
+overwrites the previous answers rather than erroring.
+
+**Response**
+```json
+{ "message": "Reading preferences saved.", "onboardingComplete": true }
+```
+**Errors:** `400` invalid/missing `readerStatus`, `genres`, or duration
+
+---
+
 ## Profile
 
 All three routes below work for logged-out visitors — they use optional
@@ -296,3 +335,172 @@ Update your own bio and/or profile picture. Only fields actually sent are change
 { "user": { "userId": 1, "name": "...", "username": "...", "gmail": "...", "profilePicture": "/uploads/profile-pictures/...", "bio": "...", "isFirstLogin": false } }
 ```
 **Errors:** `400` bio too long or invalid image type/size · `404` user not found
+
+---
+
+## Follow
+
+### `POST /users/:username/follow` 🔒 *protected*
+Follow the given user. Idempotent — following someone you already follow
+just returns the current state instead of erroring.
+
+**Response**
+```json
+{ "following": true, "followersCount": 43 }
+```
+**Errors:** `400` can't follow yourself · `404` user not found
+
+---
+
+### `DELETE /users/:username/follow` 🔒 *protected*
+Unfollow the given user. Also idempotent.
+
+**Response**
+```json
+{ "following": false, "followersCount": 42 }
+```
+**Errors:** `404` user not found
+
+---
+
+## Books
+
+### `GET /books/:bookId`
+Fetch a single book's info (catalog or user-submitted).
+
+**Response**
+```json
+{
+  "book": {
+    "bookId": 3, "title": "Dune", "author": "Frank Herbert",
+    "genre": "Sci-Fi", "publishedDate": "1965-08-01",
+    "coverImage": "https://...", "rating": 4.6, "noOfRatings": 128,
+    "source": "catalog"
+  }
+}
+```
+**Errors:** `400` bookId not an integer · `404` book not found
+
+---
+
+### `GET /books/lookup?title=dune&limit=8`
+> Not the general book/user discovery search (that's a separate feature,
+> coming later). This is the narrow, compose-time lookup used by the
+> post/review/quote creation screens.
+
+Call this as the user types a book title while creating a post, review, or
+quote. Matches on title or author, catalog books ranked first.
+
+**Frontend flow:**
+1. User types a title → call this endpoint → show the matches.
+2. User taps a match → autofill the author field from it, and send that
+   book's `bookId` when creating the post/review/quote.
+3. No match / user ignores suggestions → let them type title + author
+   manually and send those instead of `bookId`. The create endpoints
+   (`POST /posts`, `POST /reviews`) look for an existing book with that
+   exact title+author first, and only create a new `user_submitted` book
+   if none exists — so the same not-yet-catalogued book doesn't get
+   duplicated every time someone posts/reviews/quotes it again.
+
+**Response**
+```json
+{
+  "books": [
+    { "bookId": 3, "title": "Dune", "author": "Frank Herbert", "genre": "Sci-Fi", "publishedDate": "1965-08-01", "coverImage": "https://...", "rating": 4.6, "noOfRatings": 128, "source": "catalog" }
+  ]
+}
+```
+**Errors:** `400` missing `title` query param
+
+---
+
+## Posts
+
+### `POST /posts` 🔒 *protected*
+```json
+{
+  "caption": "Just finished this, wow.",
+  "visibility": "PUBLIC",
+  "bookId": 3
+}
+```
+Or, for a book not yet in the system (see `/books/lookup` flow above):
+```json
+{
+  "caption": "Just finished this, wow.",
+  "visibility": "PUBLIC",
+  "title": "Some Indie Novel",
+  "author": "Jane Q. Author"
+}
+```
+- `visibility` — one of `PUBLIC` | `PRIVATE` | `JUST_ME`, required.
+- `bookId` — id of an existing book, optional.
+- `title` / `author` — used instead of `bookId` when the book isn't in the
+  system yet; reuses a matching book if one already exists (case-insensitive
+  title+author match), otherwise creates a new `user_submitted` book.
+  Optional `genre`, `publishedDate`, `coverImage` are used only when a new
+  book is actually created this way.
+- At least one of `caption`, `bookId`, or `title` is required — a
+  completely empty post is rejected.
+
+**Response** — `201`
+```json
+{
+  "post": {
+    "postId": 8, "caption": "Just finished this, wow.", "visibility": "PUBLIC",
+    "createdAt": "...", "likeCount": 0,
+    "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert" }
+  }
+}
+```
+**Errors:** `400` invalid visibility, missing caption/book, or missing
+title+author when no `bookId` given · `404` `bookId` doesn't exist
+
+---
+
+### `DELETE /posts/:postId` 🔒 *protected*
+Deletes your own post. Ownership is enforced server-side — trying to
+delete someone else's post returns `404`, same as it not existing at all.
+
+**Response** — `204 No Content`
+**Errors:** `400` postId not an integer · `404` not found / not yours
+
+---
+
+## Reviews
+
+### `POST /reviews` 🔒 *protected*
+```json
+{
+  "rating": 4.5,
+  "review": "Loved the world-building, pacing dragged in the middle.",
+  "bookId": 3
+}
+```
+Or with `title`/`author` instead of `bookId`, exactly like `POST /posts`
+above. Unlike posts, a review always needs a book — `reviews.book_id` is
+required, so either `bookId` or `title`+`author` must be given.
+
+- `rating` — number, `0`–`5`, required.
+- `review` — text, required.
+
+**Response** — `201`
+```json
+{
+  "review": {
+    "reviewId": 12, "rating": 4.5,
+    "review": "Loved the world-building, pacing dragged in the middle.",
+    "createdAt": "...", "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert" }
+  }
+}
+```
+**Errors:** `400` invalid rating/review, or missing book info · `404` book not found
+
+---
+
+### `DELETE /reviews/:reviewId` 🔒 *protected*
+Deletes your own review. Same ownership-enforced-server-side behavior as
+`DELETE /posts/:postId`.
+
+**Response** — `204 No Content`
+**Errors:** `400` reviewId not an integer · `404` not found / not yours
