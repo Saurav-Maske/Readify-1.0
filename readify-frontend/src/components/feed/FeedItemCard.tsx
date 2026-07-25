@@ -108,32 +108,71 @@ export function FeedItemCard({
                     </div>
 
                     {item.book && (
-                        <Link
-                            to={`/books?id=${item.book.id}`}
-                            className="mt-3 flex items-center gap-3 rounded-xl bg-background dark:bg-background-dark p-3 transition-colors duration-150 hover:bg-gray-100 dark:hover:bg-gray-800"
-                        >
-                            {item.book.coverUrl ? (
-                                <img
-                                    src={item.book.coverUrl}
-                                    alt={item.book.title}
-                                    className="h-16 w-11 shrink-0 rounded-md object-cover"
-                                />
-                            ) : (
-                                <div
-                                    className="flex h-16 w-11 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold text-white"
-                                    style={{ backgroundColor: item.book.coverColor ?? '#5B5CEB' }}
-                                >
-                                    {item.book.title.slice(0, 2).toUpperCase()}
+                        <div className="mt-4 rounded-2xl border border-gray-100 bg-background/80 p-4 dark:border-gray-800 dark:bg-background-dark/70">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="flex min-w-0 flex-1 items-start gap-3">
+                                    <Link to={`/books?id=${item.book.id}`} className="shrink-0">
+                                        {item.book.coverUrl ? (
+                                            <img
+                                                src={item.book.coverUrl}
+                                                alt={item.book.title}
+                                                className="h-16 w-11 rounded-md object-cover"
+                                            />
+                                        ) : (
+                                            <div
+                                                className="flex h-16 w-11 items-center justify-center rounded-md text-[10px] font-semibold text-white"
+                                                style={{ backgroundColor: item.book.coverColor ?? '#5B5CEB' }}
+                                            >
+                                                {item.book.title.slice(0, 2).toUpperCase()}
+                                            </div>
+                                        )}
+                                    </Link>
+
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-semibold text-text dark:text-text-dark">{item.book.title}</p>
+                                        <p className="mt-0.5 truncate text-xs text-textSecondary dark:text-textSecondary-dark">{item.book.author}</p>
+                                        <div className="mt-2">
+                                            <StarRating value={item.book.rating} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {item.type === 'review' && (
+                                    <Link
+                                        to={`/books?id=${item.book.id}`}
+                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-sm font-semibold text-textSecondary transition-colors duration-150 hover:border-primary hover:text-primary dark:border-gray-700 dark:bg-gray-900 dark:text-textSecondary-dark dark:hover:border-primary/70 dark:hover:bg-gray-800"
+                                        aria-label="Review details"
+                                    >
+                                        i
+                                    </Link>
+                                )}
+                            </div>
+
+                            {item.type === 'review' && (
+                                <div className="mt-3 rounded-xl bg-white/70 p-3 dark:bg-gray-900/50">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-textSecondary dark:text-textSecondary-dark">Your rating</p>
+                                            <p className="mt-1 text-sm font-medium text-text dark:text-text-dark">Tap the stars to rate this book</p>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <button
+                                                    key={star}
+                                                    type="button"
+                                                    className={`h-5 w-5 rounded-full transition-colors duration-150 ${star <= item.book.rating ? 'text-amber-400' : 'text-gray-300 dark:text-gray-500'}`}
+                                                    aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                                                >
+                                                    <svg viewBox="0 0 24 24" className="h-full w-full fill-current" aria-hidden="true">
+                                                        <path d="M12 2.75l2.9 5.9 6.5.95-4.7 4.58 1.1 6.47-5.8-3.05-5.8 3.05 1.1-6.47-4.7-4.58 6.5-.95L12 2.75z" />
+                                                    </svg>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
-                            <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-text dark:text-text-dark">{item.book.title}</p>
-                                <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">{item.book.author}</p>
-                                <div className="mt-1">
-                                    <StarRating value={item.book.rating} />
-                                </div>
-                            </div>
-                        </Link>
+                        </div>
                     )}
 
                     <p className="mt-3 whitespace-pre-wrap text-sm text-text dark:text-text-dark">{item.content}</p>

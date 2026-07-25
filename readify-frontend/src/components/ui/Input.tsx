@@ -17,7 +17,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
     return (
       <div className="w-full">
-        <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-text">
+        <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-text dark:text-text-dark">
           {label}
         </label>
         <div
@@ -30,7 +30,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? errorId : hint ? hintId : undefined}
-            className={`w-full rounded-xl bg-transparent px-4 py-3 text-sm text-text placeholder:text-textSecondary/70 focus:outline-none ${
+            className={`w-full rounded-xl bg-transparent px-4 py-3 text-sm text-text dark:text-text-dark placeholder:text-textSecondary/70 dark:placeholder:text-textSecondary-dark/70 focus:outline-none ${
               rightElement ? 'pr-11' : ''
             } ${className}`}
             {...rest}
@@ -42,7 +42,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {error}
           </p>
         ) : hint ? (
-          <p id={hintId} className="mt-1.5 text-xs text-textSecondary">
+          <p id={hintId} className="mt-1.5 text-xs text-textSecondary dark:text-textSecondary-dark">
             {hint}
           </p>
         ) : null}

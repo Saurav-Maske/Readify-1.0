@@ -85,7 +85,6 @@ export default function ProfilePage() {
   const [newQuoteText, setNewQuoteText] = useState('');
   const [activeProfileEditor, setActiveProfileEditor] = useState<'bio' | 'photo' | null>(null);
   const [bioDraft, setBioDraft] = useState('');
-  const [profilePictureDraft, setProfilePictureDraft] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const [activeModal, setActiveModal] = useState<'followers' | 'following' | null>(null);
@@ -137,7 +136,6 @@ export default function ProfilePage() {
         setPosts(postsResponse.data.posts.map((post) => toFeedItem(post, profileResponse.data.user)));
         setQuotes(quotesResponse.data.quotes.map((quote) => quote.quote));
         setBioDraft(profileResponse.data.user.bio ?? '');
-        setProfilePictureDraft(profileResponse.data.user.profilePicture ?? '');
       } catch {
         if (!isCurrentRequest) return;
         setLoadError('Unable to load this profile. Please try again.');
