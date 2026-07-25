@@ -15,15 +15,15 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     const hintId = `${textareaId}-hint`;
 
     return (
-      <div className="w-full">
+      <div className="w-full h-full flex flex-col">
         {label && (
-          <label htmlFor={textareaId} className="mb-1.5 block text-sm font-medium text-text">
+          <label htmlFor={textareaId} className="mb-1.5 block text-sm font-medium text-text dark:text-text-dark">
             {label}
           </label>
         )}
         <div
-          className={`relative rounded-xl border bg-white transition-all duration-150 focus-within:scale-[1.01] focus-within:shadow-sm ${
-            error ? 'border-error' : 'border-gray-200 focus-within:border-primary'
+          className={`relative flex-1 flex rounded-xl border bg-white dark:bg-gray-900 transition-all duration-150 focus-within:scale-[1.01] focus-within:shadow-sm ${
+            error ? 'border-error' : 'border-gray-200 dark:border-gray-700 focus-within:border-primary'
           }`}
         >
           <textarea
@@ -32,7 +32,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             rows={rows}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? errorId : hint ? hintId : undefined}
-            className={`w-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm text-text placeholder:text-textSecondary/70 focus:outline-none ${className}`}
+            className={`w-full h-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm text-text dark:text-text-dark placeholder:text-textSecondary/70 dark:placeholder:text-textSecondary-dark/70 focus:outline-none ${className}`}
             {...rest}
           />
         </div>
@@ -41,7 +41,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             {error}
           </p>
         ) : hint ? (
-          <p id={hintId} className="mt-1.5 text-xs text-textSecondary">
+          <p id={hintId} className="mt-1.5 text-xs text-textSecondary dark:text-textSecondary-dark">
             {hint}
           </p>
         ) : null}
@@ -49,5 +49,3 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     );
   }
 );
-
-Textarea.displayName = 'Textarea';

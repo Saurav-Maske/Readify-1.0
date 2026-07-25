@@ -23,7 +23,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
         exit={{ opacity: 0, y: 16, scale: 0.98 }}
         transition={{ duration: 0.2 }}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl bg-card dark:bg-card-dark p-6 shadow-lg"
+        className="w-full max-w-3xl rounded-2xl bg-card dark:bg-card-dark p-6 shadow-lg"
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-bold text-text dark:text-text-dark">{title}</h2>
