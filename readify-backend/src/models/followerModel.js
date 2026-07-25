@@ -38,4 +38,47 @@ async function getRelationship(viewerId, targetUserId) {
   return friends ? 'friend' : 'stranger';
 }
 
-module.exports = { countFollowers, countFollowing, areFriends, getRelationship };
+async function isFollowing(followerId, followingId) {
+  const { rows } = await pool.query(
+    'SELECT EXISTS (SELECT 1 FROM followers WHERE follower_id = $1 AND following_id = $2) AS following',
+    [followerId, followingId]
+  );
+  return rows[0].following;
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/users/:username/follow
+// ON CONFLICT DO NOTHING makes this idempotent - following someone you
+// already follow just no-ops instead of erroring.
+// ---------------------------------------------------------------------------
+async function follow(followerId, followingId) {
+  const { rows } = await pool.query(
+    `INSERT INTO followers (follower_id, following_id)
+     VALUES ($1, $2)
+     ON CONFLICT (follower_id, following_id) DO NOTHING
+     RETURNING follow_id`,
+    [followerId, followingId]
+  );
+  return rows[0] || null;
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/users/:username/follow
+// ---------------------------------------------------------------------------
+async function unfollow(followerId, followingId) {
+  const { rows } = await pool.query(
+    `DELETE FROM followers WHERE follower_id = $1 AND following_id = $2 RETURNING follow_id`,
+    [followerId, followingId]
+  );
+  return rows[0] || null;
+}
+
+module.exports = {
+  countFollowers,
+  countFollowing,
+  areFriends,
+  getRelationship,
+  isFollowing,
+  follow,
+  unfollow,
+};

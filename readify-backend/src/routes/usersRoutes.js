@@ -3,6 +3,7 @@ const router = express.Router();
 const onboardingController = require('../controllers/onboardingController');
 
 const profileController = require('../controllers/profileController');
+const followController = require('../controllers/followController');
 const optionalAuth = require('../middleware/optionalAuth');
 const requireAuth = require('../middleware/authMiddleware');
 const uploadProfilePicture = require('../middleware/uploadProfilePicture');
@@ -18,6 +19,8 @@ router.patch(
 // All three work for logged-out visitors (public profile pages), but behave
 // differently if the visitor happens to be logged in as the profile owner.
 router.post('/reading-preferences', requireAuth, onboardingController.saveReadingPreferences);
+router.post('/:username/follow', requireAuth, followController.followUser);
+router.delete('/:username/follow', requireAuth, followController.unfollowUser);
 router.get('/:username', optionalAuth, profileController.getProfile);
 router.get('/:username/quotes', optionalAuth, profileController.getRecentQuotes);
 router.get('/:username/posts', optionalAuth, profileController.getPosts);
