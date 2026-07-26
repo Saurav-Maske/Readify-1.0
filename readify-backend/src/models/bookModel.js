@@ -9,7 +9,8 @@ async function findById(bookId) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/books?search=...
+// Backs GET /api/books/lookup?title=... - the compose-time "find this book"
+// helper used by posts/reviews/quotes (see bookController.lookupBooks).
 // Simple ILIKE search across title/author, catalog books ranked first.
 // ---------------------------------------------------------------------------
 async function search(query, { limit = 20 } = {}) {

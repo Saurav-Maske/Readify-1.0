@@ -18,9 +18,9 @@ const readingHistory = require('./readingHistory.schema');
 const wishlist = require('./wishlist.schema');
 const posts = require('./posts.schema');
 const quotes = require('./quotes.schema');
-const likes = require('./likes.schema');       // depends on posts + quotes
-const comments = require('./comments.schema'); // depends on posts
 const reviews = require('./reviews.schema');
+const likes = require('./likes.schema');       // depends on posts + quotes + reviews
+const comments = require('./comments.schema'); // depends on posts + reviews
 const userOnboarding = require('./userOnboarding.schema'); // depends on users
 
 module.exports = [
@@ -33,8 +33,8 @@ module.exports = [
   wishlist,
   posts,
   quotes,
+  reviews,
   likes,
   comments,
-  reviews,
   userOnboarding,
 ];

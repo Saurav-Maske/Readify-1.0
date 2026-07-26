@@ -28,4 +28,51 @@ async function findRecentByUser(userId, { limit = 3, visibilities = ['PUBLIC'] }
   return rows;
 }
 
-module.exports = { findRecentByUser };
+// ---------------------------------------------------------------------------
+// POST /api/quotes
+// ---------------------------------------------------------------------------
+async function create(userId, { bookId, quote, visibility }) {
+  const { rows } = await pool.query(
+    `INSERT INTO quotes (user_id, book_id, quote, visibility)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [userId, bookId, quote, visibility]
+  );
+  return rows[0];
+}
+
+// Single quote, joined with book - used to build the response right after
+// creation and to check ownership before delete.
+async function findById(quoteId) {
+  const { rows } = await pool.query(
+    `SELECT
+        q.quote_id,
+        q.user_id,
+        q.quote,
+        q.visibility,
+        q.created_at,
+        q.book_id,
+        b.title AS book_title,
+        b.author AS book_author
+     FROM quotes q
+     JOIN books b ON b.book_id = q.book_id
+     WHERE q.quote_id = $1`,
+    [quoteId]
+  );
+  return rows[0] || null;
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/quotes/:quoteId
+// Ownership enforced in the query itself, same reasoning as
+// postModel.deleteById / reviewModel.deleteById.
+// ---------------------------------------------------------------------------
+async function deleteById(quoteId, userId) {
+  const { rows } = await pool.query(
+    `DELETE FROM quotes WHERE quote_id = $1 AND user_id = $2 RETURNING quote_id`,
+    [quoteId, userId]
+  );
+  return rows[0] || null;
+}
+
+module.exports = { findRecentByUser, create, findById, deleteById };

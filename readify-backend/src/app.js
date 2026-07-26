@@ -4,10 +4,11 @@ const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
 const usersRoutes = require('./routes/usersRoutes');
+const booksRoutes = require('./routes/booksRoutes');
+const postsRoutes = require('./routes/postsRoutes');
+const reviewsRoutes = require('./routes/reviewsRoutes');
+const quotesRoutes = require('./routes/quotesRoutes');
 const errorHandler = require('./middleware/errorHandler');
-const postsRoute = require('./routes/postsRoutes');
-const reviewsRoute = require('./routes/reviewsRoutes');
-const booksRoute = require('./routes/booksRoutes');
 
 const app = express();
 
@@ -49,6 +50,10 @@ app.use((req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/books', booksRoutes);
+app.use('/api/posts', postsRoutes);
+app.use('/api/reviews', reviewsRoutes);
+app.use('/api/quotes', quotesRoutes);
 
 // 404 fallback
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

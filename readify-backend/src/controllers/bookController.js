@@ -22,20 +22,27 @@ async function getBook(req, res, next) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/books?search=dune&limit=20
-// Title/author search, e.g. for a "which book is this post/review about"
-// picker on the frontend. Catalog matches are ranked ahead of user-submitted
-// ones.
+// GET /api/books/lookup?title=dune&limit=8
+//
+// NOT the general book/user search feature (that's a separate, future
+// endpoint that will cover browsing/discovery across both). This is the
+// narrow lookup used while composing a post/review/quote: the frontend
+// calls it as the user types a book title, shows the matches, and if the
+// user picks one, the author autofills and the frontend just sends that
+// book's bookId along with the post/review/quote. If nothing matches, the
+// user types the title+author manually and postController/reviewController
+// create a 'user_submitted' book for it via bookModel.resolveBook - the
+// user never has to know whether the book already existed.
 // ---------------------------------------------------------------------------
-async function searchBooks(req, res, next) {
+async function lookupBooks(req, res, next) {
   try {
-    const { search } = req.query;
-    if (!search || !search.trim()) {
-      return res.status(400).json({ error: 'search query param is required' });
+    const { title } = req.query;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'title query param is required' });
     }
 
-    const limit = Math.min(Number(req.query.limit) || 20, 50);
-    const books = await bookModel.search(search.trim(), { limit });
+    const limit = Math.min(Number(req.query.limit) || 8, 20);
+    const books = await bookModel.search(title.trim(), { limit });
 
     return res.json({ books: books.map(formatBook) });
   } catch (err) {
@@ -57,4 +64,4 @@ function formatBook(b) {
   };
 }
 
-module.exports = { getBook, searchBooks };
+module.exports = { getBook, lookupBooks };
