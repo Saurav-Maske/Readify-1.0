@@ -504,3 +504,43 @@ Deletes your own review. Same ownership-enforced-server-side behavior as
 
 **Response** — `204 No Content`
 **Errors:** `400` reviewId not an integer · `404` not found / not yours
+
+---
+
+## Quotes
+
+### `POST /quotes` 🔒 *protected*
+```json
+{
+  "quote": "Fear is the mind-killer.",
+  "visibility": "PUBLIC",
+  "bookId": 3
+}
+```
+Or with `title`/`author` instead of `bookId`, exactly like `POST /posts` /
+`POST /reviews` above. Like reviews, a quote always needs a book — either
+`bookId` or `title`+`author` must be given. Like posts, it also carries a
+visibility tier.
+
+- `quote` — text, required.
+- `visibility` — one of `PUBLIC` | `PRIVATE` | `JUST_ME`, required.
+
+**Response** — `201`
+```json
+{
+  "quote": {
+    "quoteId": 12, "quote": "Fear is the mind-killer.", "visibility": "PUBLIC",
+    "createdAt": "...", "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert" }
+  }
+}
+```
+**Errors:** `400` missing quote/visibility, or missing book info · `404` book not found
+
+---
+
+### `DELETE /quotes/:quoteId` 🔒 *protected*
+Deletes your own quote. Same ownership-enforced-server-side behavior as
+`DELETE /posts/:postId` and `DELETE /reviews/:reviewId`.
+
+**Response** — `204 No Content`
+**Errors:** `400` quoteId not an integer · `404` not found / not yours
