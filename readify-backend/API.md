@@ -238,15 +238,18 @@ auth, not required auth. If a valid `Authorization: Bearer <token>` header
 is sent, the response is tailored to who's asking; if not, the viewer is
 treated as a stranger.
 
-**Visibility rule** for `posts` and `quotes` (both have a `PUBLIC |
-PRIVATE | JUST_ME` field), based on the viewer's relationship to the
-profile owner:
+**Visibility rule** for `posts` and `quotes` (filtered by a `visibility`
+column), based on the viewer's relationship to the profile owner:
 
 | relationship | sees |
 |---|---|
 | `self` (own profile) | PUBLIC + PRIVATE + JUST_ME |
 | `friend` (mutual follow — both users follow each other) | PUBLIC + PRIVATE |
 | `stranger` (everyone else, incl. logged-out) | PUBLIC only |
+
+In practice this only matters for `posts` right now — `POST /quotes`
+doesn't accept a `visibility` field, so every quote is `PUBLIC` and visible
+to everyone regardless of relationship.
 
 `reviews` are not part of this system — a review is essentially a post
 with a rating attached, and is always public regardless of relationship.
@@ -278,15 +281,15 @@ is `true`.
 
 ### `GET /users/:username/quotes?limit=3`
 Most recent quotes, newest first, filtered by the visibility rule above.
+No book association (quotes aren't linked to a book) and no `visibility`
+field in the response — the query filters by visibility, but only
+`quoteId`, `quote`, and `createdAt` are actually returned.
 
 **Response**
 ```json
 {
   "quotes": [
-    {
-      "quoteId": 12, "quote": "...", "visibility": "PUBLIC",
-      "createdAt": "...", "book": { "bookId": 3, "title": "...", "author": "..." }
-    }
+    { "quoteId": 12, "quote": "...", "createdAt": "..." }
   ]
 }
 ```
@@ -306,8 +309,7 @@ larger `limit` and `offset=3` to load the rest.
   "posts": [
     {
       "postId": 8, "caption": "...", "visibility": "PUBLIC",
-      "createdAt": "...", "likeCount": 4,
-      "book": { "bookId": 3, "title": "...", "author": "..." }
+      "createdAt": "...", "likeCount": 4, "book": null
     }
   ],
   "limit": 3,
@@ -315,6 +317,9 @@ larger `limit` and `offset=3` to load the rest.
   "hasMore": true
 }
 ```
+> `book` is always `null` — posts haven't been linked to a book since
+> `posts.book_id` was dropped from the schema, but the response still
+> includes the (now dead) field.
 
 ---
 
@@ -386,21 +391,22 @@ Fetch a single book's info (catalog or user-submitted).
 ### `GET /books/lookup?title=dune&limit=8`
 > Not the general book/user discovery search (that's a separate feature,
 > coming later). This is the narrow, compose-time lookup used by the
-> post/review/quote creation screens.
+> review creation screen — see below, `posts` and `quotes` don't take a
+> book at all anymore.
 
-Call this as the user types a book title while creating a post, review, or
-quote. Matches on title or author, catalog books ranked first.
+Call this as the user types a book title while creating a review. Matches
+on title or author, catalog books ranked first.
 
 **Frontend flow:**
 1. User types a title → call this endpoint → show the matches.
 2. User taps a match → autofill the author field from it, and send that
-   book's `bookId` when creating the post/review/quote.
+   book's `bookId` when creating the review.
 3. No match / user ignores suggestions → let them type title + author
-   manually and send those instead of `bookId`. The create endpoints
-   (`POST /posts`, `POST /reviews`) look for an existing book with that
-   exact title+author first, and only create a new `user_submitted` book
-   if none exists — so the same not-yet-catalogued book doesn't get
-   duplicated every time someone posts/reviews/quotes it again.
+   manually and send those instead of `bookId`. `POST /reviews` looks for
+   an existing book with that exact title+author first, and only creates a
+   new `user_submitted` book if none exists — so the same not-yet-
+   catalogued book doesn't get duplicated every time someone reviews it
+   again.
 
 **Response**
 ```json
@@ -416,45 +422,30 @@ quote. Matches on title or author, catalog books ranked first.
 
 ## Posts
 
+Posts are **not** linked to a book — there's no book/title/author field
+anywhere in this endpoint (that used to be true; `posts.book_id` has since
+been dropped from the schema).
+
 ### `POST /posts` 🔒 *protected*
 ```json
 {
   "caption": "Just finished this, wow.",
-  "visibility": "PUBLIC",
-  "bookId": 3
+  "visibility": "PUBLIC"
 }
 ```
-Or, for a book not yet in the system (see `/books/lookup` flow above):
-```json
-{
-  "caption": "Just finished this, wow.",
-  "visibility": "PUBLIC",
-  "title": "Some Indie Novel",
-  "author": "Jane Q. Author"
-}
-```
+- `caption` — string, required (must have non-whitespace content).
 - `visibility` — one of `PUBLIC` | `PRIVATE` | `JUST_ME`, required.
-- `bookId` — id of an existing book, optional.
-- `title` / `author` — used instead of `bookId` when the book isn't in the
-  system yet; reuses a matching book if one already exists (case-insensitive
-  title+author match), otherwise creates a new `user_submitted` book.
-  Optional `genre`, `publishedDate`, `coverImage` are used only when a new
-  book is actually created this way.
-- At least one of `caption`, `bookId`, or `title` is required — a
-  completely empty post is rejected.
 
 **Response** — `201`
 ```json
 {
   "post": {
     "postId": 8, "caption": "Just finished this, wow.", "visibility": "PUBLIC",
-    "createdAt": "...", "likeCount": 0,
-    "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert" }
+    "createdAt": "...", "likeCount": 0
   }
 }
 ```
-**Errors:** `400` invalid visibility, missing caption/book, or missing
-title+author when no `bookId` given · `404` `bookId` doesn't exist
+**Errors:** `400` invalid/missing `visibility` · `400` missing `caption`
 
 ---
 
@@ -477,9 +468,21 @@ delete someone else's post returns `404`, same as it not existing at all.
   "bookId": 3
 }
 ```
-Or with `title`/`author` instead of `bookId`, exactly like `POST /posts`
-above. Unlike posts, a review always needs a book — `reviews.book_id` is
-required, so either `bookId` or `title`+`author` must be given.
+Or, for a book not yet in the system (see `/books/lookup` flow above),
+`title`/`author` instead of `bookId`:
+```json
+{
+  "rating": 4.5,
+  "review": "Loved the world-building, pacing dragged in the middle.",
+  "title": "Some Indie Novel",
+  "author": "Jane Q. Author"
+}
+```
+`reviews.book_id` is required at the DB level, so either `bookId` or
+`title`+`author` must be given. Optional `genre`, `publishedDate`,
+`coverImage` are used only when a new book is actually created this way.
+Reviews are the only endpoint that still works with books this way —
+`posts` and `quotes` dropped book association entirely.
 
 - `rating` — number, `0`–`5`, required.
 - `review` — text, required.
@@ -509,32 +512,30 @@ Deletes your own review. Same ownership-enforced-server-side behavior as
 
 ## Quotes
 
+Quotes are **not** linked to a book (same as posts — `quotes.book_id` has
+been dropped from the schema).
+
 ### `POST /quotes` 🔒 *protected*
 ```json
 {
-  "quote": "Fear is the mind-killer.",
-  "visibility": "PUBLIC",
-  "bookId": 3
+  "quote": "Fear is the mind-killer."
 }
 ```
-Or with `title`/`author` instead of `bookId`, exactly like `POST /posts` /
-`POST /reviews` above. Like reviews, a quote always needs a book — either
-`bookId` or `title`+`author` must be given. Like posts, it also carries a
-visibility tier.
-
 - `quote` — text, required.
-- `visibility` — one of `PUBLIC` | `PRIVATE` | `JUST_ME`, required.
+- There is no `visibility` field on this endpoint. Every quote created
+  through the API defaults to `PUBLIC` (the DB column default) — the
+  request body's `visibility`, if sent, is ignored.
 
 **Response** — `201`
 ```json
 {
   "quote": {
     "quoteId": 12, "quote": "Fear is the mind-killer.", "visibility": "PUBLIC",
-    "createdAt": "...", "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert" }
+    "createdAt": "..."
   }
 }
 ```
-**Errors:** `400` missing quote/visibility, or missing book info · `404` book not found
+**Errors:** `400` missing `quote`
 
 ---
 
