@@ -13,12 +13,8 @@ async function findRecentByUser(userId, { limit = 3, visibilities = ['PUBLIC'] }
         q.quote_id,
         q.quote,
         q.visibility,
-        q.created_at,
-        q.book_id,
-        b.title AS book_title,
-        b.author AS book_author
+        q.created_at
      FROM quotes q
-     JOIN books b ON b.book_id = q.book_id
      WHERE q.user_id = $1
        AND q.visibility = ANY($2::text[])
      ORDER BY q.created_at DESC
@@ -31,12 +27,12 @@ async function findRecentByUser(userId, { limit = 3, visibilities = ['PUBLIC'] }
 // ---------------------------------------------------------------------------
 // POST /api/quotes
 // ---------------------------------------------------------------------------
-async function create(userId, { bookId, quote, visibility }) {
+async function create(userId, { quote }) {
   const { rows } = await pool.query(
-    `INSERT INTO quotes (user_id, book_id, quote, visibility)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO quotes (user_id, quote)
+     VALUES ($1, $2)
      RETURNING *`,
-    [userId, bookId, quote, visibility]
+    [userId, quote]
   );
   return rows[0];
 }
@@ -50,12 +46,8 @@ async function findById(quoteId) {
         q.user_id,
         q.quote,
         q.visibility,
-        q.created_at,
-        q.book_id,
-        b.title AS book_title,
-        b.author AS book_author
+        q.created_at
      FROM quotes q
-     JOIN books b ON b.book_id = q.book_id
      WHERE q.quote_id = $1`,
     [quoteId]
   );

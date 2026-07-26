@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { Modal } from '../ui/Modal';
-import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
 import { StarRating } from '../ui/StarRating';
-import { lookupAuthorByTitle } from '../../lib/bookLookup';
 import type { CreateEntryPayload, PostVisibility } from '../../types/feed';
 
 interface NewEntryModalProps {
@@ -49,9 +47,6 @@ function VisibilityOption({
 
 export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModalProps) {
   const [isReview, setIsReview] = useState(true);
-  const [bookTitle, setBookTitle] = useState('');
-  const [bookAuthor, setBookAuthor] = useState('');
-  const [authorWasAutoFilled, setAuthorWasAutoFilled] = useState(false);
   const [rating, setRating] = useState(0);
   const [content, setContent] = useState('');
   const [visibility, setVisibility] = useState<PostVisibility>('public');
@@ -59,25 +54,7 @@ export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModa
 
   if (!isOpen) return null;
 
-  const handleTitleChange = (value: string) => {
-    setBookTitle(value);
-
-    const match = lookupAuthorByTitle(value);
-    if (match) {
-      setBookAuthor(match.author);
-      setAuthorWasAutoFilled(true);
-    } else if (authorWasAutoFilled) {
-      setBookAuthor('');
-      setAuthorWasAutoFilled(false);
-    }
-  };
-
-  const handleAuthorChange = (value: string) => {
-    setBookAuthor(value);
-    setAuthorWasAutoFilled(false);
-  };
-
-  const isValid = Boolean(bookTitle.trim() && bookAuthor.trim() && content.trim() && (!isReview || rating > 0));
+  const isValid = Boolean(content.trim() && (!isReview || rating > 0));
 
   const handleSubmit = async () => {
     if (!isValid || isSubmitting) return;
@@ -86,8 +63,8 @@ export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModa
     try {
       await onSubmit({
         isReview,
-        bookTitle: bookTitle.trim(),
-        bookAuthor: bookAuthor.trim(),
+        bookTitle: '',
+        bookAuthor: '',
         rating,
         content: content.trim(),
         visibility: isReview ? 'public' : visibility,
@@ -128,19 +105,6 @@ export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModa
               </div>
             </div>
           </div>
-
-          <Input
-            label="Book title"
-            placeholder="e.g. Fourth Wing"
-            value={bookTitle}
-            onChange={(event) => handleTitleChange(event.target.value)}
-          />
-          <Input
-            label="Author"
-            placeholder="Auto-filled from title, or type your own"
-            value={bookAuthor}
-            onChange={(event) => handleAuthorChange(event.target.value)}
-          />
 
           <div className="rounded-2xl border border-gray-100 bg-background p-4 dark:border-gray-800 dark:bg-background-dark">
             <div className="flex items-center justify-between gap-3">

@@ -17,16 +17,12 @@ async function findByUserPaginated(userId, { limit = 3, offset = 0, visibilities
         p.caption,
         p.visibility,
         p.created_at,
-        p.book_id,
-        b.title AS book_title,
-        b.author AS book_author,
         COUNT(l.like_id)::int AS like_count
      FROM posts p
-     LEFT JOIN books b ON b.book_id = p.book_id
      LEFT JOIN likes l ON l.post_id = p.post_id
      WHERE p.user_id = $1
        AND p.visibility = ANY($2::text[])
-     GROUP BY p.post_id, b.title, b.author
+     GROUP BY p.post_id
      ORDER BY p.created_at DESC
      LIMIT $3 OFFSET $4`,
     [userId, visibilities, limit, offset]
@@ -37,12 +33,12 @@ async function findByUserPaginated(userId, { limit = 3, offset = 0, visibilities
 // ---------------------------------------------------------------------------
 // POST /api/posts
 // ---------------------------------------------------------------------------
-async function create(userId, { bookId, caption, visibility }) {
+async function create(userId, { caption, visibility }) {
   const { rows } = await pool.query(
-    `INSERT INTO posts (user_id, book_id, caption, visibility)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO posts (user_id, caption, visibility)
+     VALUES ($1, $2, $3)
      RETURNING *`,
-    [userId, bookId ?? null, caption ?? null, visibility]
+    [userId, caption, visibility]
   );
   return rows[0];
 }
@@ -58,15 +54,11 @@ async function findById(postId) {
         p.caption,
         p.visibility,
         p.created_at,
-        p.book_id,
-        b.title AS book_title,
-        b.author AS book_author,
         COUNT(l.like_id)::int AS like_count
      FROM posts p
-     LEFT JOIN books b ON b.book_id = p.book_id
      LEFT JOIN likes l ON l.post_id = p.post_id
      WHERE p.post_id = $1
-     GROUP BY p.post_id, b.title, b.author`,
+     GROUP BY p.post_id`,
     [postId]
   );
   return rows[0] || null;
