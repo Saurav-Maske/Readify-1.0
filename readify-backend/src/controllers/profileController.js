@@ -76,9 +76,7 @@ async function getRecentQuotes(req, res, next) {
       quotes: quotes.map((q) => ({
         quoteId: q.quote_id,
         quote: q.quote,
-        visibility: q.visibility,
         createdAt: q.created_at,
-        book: { bookId: q.book_id, title: q.book_title, author: q.book_author },
       })),
     });
   } catch (err) {

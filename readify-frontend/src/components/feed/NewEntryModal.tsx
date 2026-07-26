@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
 import { StarRating } from '../ui/StarRating';
-import { lookupAuthorByTitle } from '../../lib/bookLookup';
 import type { CreateEntryPayload, PostVisibility } from '../../types/feed';
 
 interface NewEntryModalProps {
   isOpen?: boolean;
   onClose: () => void;
   onSubmit: (payload: CreateEntryPayload) => Promise<void> | void;
+  initialMode?: 'post' | 'review';
+  initialBookTitle?: string;
+  initialBookAuthor?: string;
+  initialContent?: string;
+  initialVisibility?: PostVisibility;
+  initialRating?: number;
 }
 
 const VISIBILITY_OPTIONS: { value: PostVisibility; label: string }[] = [
@@ -47,37 +52,40 @@ function VisibilityOption({
   );
 }
 
-export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModalProps) {
-  const [isReview, setIsReview] = useState(true);
-  const [bookTitle, setBookTitle] = useState('');
-  const [bookAuthor, setBookAuthor] = useState('');
-  const [authorWasAutoFilled, setAuthorWasAutoFilled] = useState(false);
-  const [rating, setRating] = useState(0);
-  const [content, setContent] = useState('');
-  const [visibility, setVisibility] = useState<PostVisibility>('public');
+export function NewEntryModal({
+  isOpen = true,
+  onClose,
+  onSubmit,
+  initialMode = 'review',
+  initialBookTitle = '',
+  initialBookAuthor = '',
+  initialContent = '',
+  initialVisibility = 'public',
+  initialRating = 0,
+}: NewEntryModalProps) {
+  const [isReview, setIsReview] = useState(initialMode === 'review');
+  const [bookTitle, setBookTitle] = useState(initialBookTitle);
+  const [bookAuthor, setBookAuthor] = useState(initialBookAuthor);
+  const [rating, setRating] = useState(initialRating);
+  const [content, setContent] = useState(initialContent);
+  const [visibility, setVisibility] = useState<PostVisibility>(initialVisibility);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setIsReview(initialMode === 'review');
+    setBookTitle(initialBookTitle);
+    setBookAuthor(initialBookAuthor);
+    setContent(initialContent);
+    setVisibility(initialVisibility);
+    setRating(initialRating);
+  }, [isOpen, initialMode, initialBookTitle, initialBookAuthor, initialContent, initialVisibility, initialRating]);
 
   if (!isOpen) return null;
 
-  const handleTitleChange = (value: string) => {
-    setBookTitle(value);
-
-    const match = lookupAuthorByTitle(value);
-    if (match) {
-      setBookAuthor(match.author);
-      setAuthorWasAutoFilled(true);
-    } else if (authorWasAutoFilled) {
-      setBookAuthor('');
-      setAuthorWasAutoFilled(false);
-    }
-  };
-
-  const handleAuthorChange = (value: string) => {
-    setBookAuthor(value);
-    setAuthorWasAutoFilled(false);
-  };
-
-  const isValid = Boolean(bookTitle.trim() && bookAuthor.trim() && content.trim() && (!isReview || rating > 0));
+  const isValid = Boolean(
+    content.trim() && (!isReview || (bookTitle.trim() && bookAuthor.trim() && rating > 0))
+  );
 
   const handleSubmit = async () => {
     if (!isValid || isSubmitting) return;
@@ -99,14 +107,14 @@ export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModa
   };
 
   return (
-    <Modal title="New post" onClose={onClose}>
+    <Modal title={isReview ? 'Review' : 'Post'} onClose={onClose}>
       <div className="grid gap-4 md:grid-cols-[0.85fr_1.4fr] items-stretch min-h-[420px]">
         <div className="space-y-4">
           <div className="rounded-2xl border border-gray-100 bg-background p-4 dark:border-gray-800 dark:bg-background-dark">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-text dark:text-text-dark">Post type</p>
-                <p className="mt-1 text-xs text-textSecondary dark:text-textSecondary-dark">Switch between a review and a normal post.</p>
+                <p className="text-sm font-semibold text-text dark:text-text-dark">Create something new</p>
+                <p className="mt-1 text-xs text-textSecondary dark:text-textSecondary-dark">Choose whether to share a post or leave a review.</p>
               </div>
               <div className="flex rounded-full border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
                 <button
@@ -128,19 +136,6 @@ export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModa
               </div>
             </div>
           </div>
-
-          <Input
-            label="Book title"
-            placeholder="e.g. Fourth Wing"
-            value={bookTitle}
-            onChange={(event) => handleTitleChange(event.target.value)}
-          />
-          <Input
-            label="Author"
-            placeholder="Auto-filled from title, or type your own"
-            value={bookAuthor}
-            onChange={(event) => handleAuthorChange(event.target.value)}
-          />
 
           <div className="rounded-2xl border border-gray-100 bg-background p-4 dark:border-gray-800 dark:bg-background-dark">
             <div className="flex items-center justify-between gap-3">
@@ -172,15 +167,29 @@ export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModa
             )}
           </div>
 
-          {isReview && (
-            <div className="min-h-[120px] rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-              <p className="text-sm font-semibold text-text dark:text-text-dark">Star rating</p>
-              <p className="mt-1 text-xs text-textSecondary dark:text-textSecondary-dark">Tap the stars to rate this book.</p>
-              <div className="mt-3">
-                <StarRating value={rating} onChange={setRating} size="md" />
+          {isReview ? (
+            <>
+              <Input
+                label="Book title"
+                placeholder="e.g. Fourth Wing"
+                value={bookTitle}
+                onChange={(event) => setBookTitle(event.target.value)}
+              />
+              <Input
+                label="Author"
+                placeholder="e.g. Rebecca Yarros"
+                value={bookAuthor}
+                onChange={(event) => setBookAuthor(event.target.value)}
+              />
+              <div className="min-h-[120px] rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <p className="text-sm font-semibold text-text dark:text-text-dark">Star rating</p>
+                <p className="mt-1 text-xs text-textSecondary dark:text-textSecondary-dark">Tap the stars to rate this book.</p>
+                <div className="mt-3">
+                  <StarRating value={rating} onChange={setRating} size="md" />
+                </div>
               </div>
-            </div>
-          )}
+            </>
+          ) : null}
         </div>
 
         <div className="rounded-2xl border border-gray-100 bg-background p-4 flex flex-col dark:border-gray-800 dark:bg-background-dark">
@@ -191,6 +200,12 @@ export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModa
                 placeholder={isReview ? 'What did you think?' : "What's on your mind?"}
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault();
+                    void handleSubmit();
+                  }
+                }}
                 className="h-full"
               />
             </div>
@@ -204,7 +219,7 @@ export function NewEntryModal({ isOpen = true, onClose, onSubmit }: NewEntryModa
           Cancel
         </Button>
         <Button type="button" onClick={handleSubmit} isLoading={isSubmitting} disabled={!isValid} className="w-auto">
-          {isReview ? 'Publish review' : 'Post'}
+          {isReview ? 'Publish review' : 'Publish post'}
         </Button>
       </div>
     </Modal>

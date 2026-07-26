@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useParams } from 'react-router-dom';
@@ -46,6 +46,14 @@ interface BackendPost {
 interface BackendQuote {
   quoteId: number;
   quote: string;
+  createdAt?: string;
+}
+
+interface ProfileQuote {
+  id: string;
+  quote: string;
+  likedByMe: boolean;
+  likeCount: number;
 }
 
 function toFeedItem(post: BackendPost, profile: BackendUser): FeedItem {
@@ -159,8 +167,9 @@ export default function ProfilePage() {
   const [loadError, setLoadError] = useState('');
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
-  const [quotes, setQuotes] = useState<string[]>([]);
-  const [newQuoteText, setNewQuoteText] = useState('');
+  const [entryModalMode, setEntryModalMode] = useState<'post' | 'review'>('post');
+  const [quotes, setQuotes] = useState<ProfileQuote[]>([]);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [activeProfileEditor, setActiveProfileEditor] = useState<'bio' | 'photo' | null>(null);
   const [bioDraft, setBioDraft] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -213,7 +222,15 @@ export default function ProfilePage() {
         setViewer(currentViewer);
         setProfile(profileResponse.data);
         setPosts(postsResponse.data.posts.map((post) => toFeedItem(post, profileResponse.data.user)));
-        setQuotes(quotesResponse.data.quotes.map((quote) => quote.quote));
+        setQuotes(
+          quotesResponse.data.quotes.map((quote) => ({
+            id: String(quote.quoteId),
+            quote: quote.quote,
+            likedByMe: false,
+            likeCount: 0,
+          }))
+        );
+        setIsFollowing(profileResponse.data.relationship === 'friend');
         setBioDraft(profileResponse.data.user.bio ?? '');
       } catch (error) {
         if (!isCurrentRequest) return;
@@ -224,7 +241,15 @@ export default function ProfilePage() {
           setViewer(DEMO_USER);
           setProfile(DEMO_PROFILE);
           setPosts(DEMO_POSTS);
-          setQuotes(DEMO_QUOTES);
+          setQuotes(
+            DEMO_QUOTES.map((quote, index) => ({
+              id: `demo-quote-${index}`,
+              quote,
+              likedByMe: false,
+              likeCount: 0,
+            }))
+          );
+          setIsFollowing(false);
           setBioDraft(DEMO_USER.bio ?? '');
           setIsDemoMode(true);
         } else {
@@ -248,6 +273,7 @@ export default function ProfilePage() {
 
   const currentUserName = viewer?.name ?? profile?.user.name ?? '';
   const isOwnProfile = profile?.isOwnProfile ?? false;
+  const shouldShowFollowStats = Boolean(profile && profile.user.userId !== 0);
 
   // Save bio only
   const handleSaveBio = async (event: FormEvent) => {
@@ -325,6 +351,16 @@ export default function ProfilePage() {
     toast.success('Post removed from profile');
   };
 
+  const handleToggleFollow = () => {
+    if (!profile || profile.user.userId === 0 || profile.isOwnProfile) return;
+
+    setIsFollowing((current) => {
+      const nextValue = !current;
+      toast.success(nextValue ? 'Following' : 'Unfollowed');
+      return nextValue;
+    });
+  };
+
   const handleToggleLike = (id: string) => {
     setPosts((current) =>
       current.map((item) =>
@@ -342,20 +378,6 @@ export default function ProfilePage() {
   const handleToggleBookmark = (id: string) => {
     setPosts((current) =>
       current.map((item) => (item.id === id ? { ...item, bookmarkedByMe: !item.bookmarkedByMe } : item))
-    );
-  };
-
-  const handleToggleRepost = (id: string) => {
-    setPosts((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              repostedByMe: !item.repostedByMe,
-              repostCount: item.repostedByMe ? item.repostCount - 1 : item.repostCount + 1,
-            }
-          : item
-      )
     );
   };
 
@@ -395,7 +417,6 @@ export default function ProfilePage() {
     const base = {
       id: `${payload.isReview ? 'review' : 'post'}-${Date.now()}`,
       author,
-      book,
       content: payload.content,
       createdAt: new Date().toISOString(),
       visibility: payload.visibility,
@@ -408,23 +429,16 @@ export default function ProfilePage() {
       comments: [] as FeedComment[],
     };
 
-    const newItem: FeedItem = payload.isReview ? { ...base, type: 'review' } : { ...base, type: 'post' };
+    const newItem: FeedItem = payload.isReview
+      ? { ...base, type: 'review', book }
+      : { ...base, type: 'post' };
 
     setPosts((current) => [newItem, ...current]);
     toast.success(payload.isReview ? 'Review published!' : 'Posted!');
   };
 
-  const handleAddQuote = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newQuoteText.trim()) return;
-    // TODO: Backend Integration - API call to persist quote in DB
-    setQuotes([...quotes, newQuoteText.trim()]);
-    setNewQuoteText('');
-    toast.success('Quote added!');
-  };
-
-  const handleDeleteQuote = (indexToRemove: number) => {
-    setQuotes(quotes.filter((_, index) => index !== indexToRemove));
+  const handleDeleteQuote = (id: string) => {
+    setQuotes((current) => current.filter((quote) => quote.id !== id));
     toast.success('Quote removed');
   };
 
@@ -569,30 +583,43 @@ export default function ProfilePage() {
                 </p>
               )}
               {!profile.isOwnProfile && (
-                <p className="pt-1 text-xs font-medium capitalize text-primary">{profile.relationship}</p>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <p className="text-xs font-medium capitalize text-primary">{profile.relationship}</p>
+                  {shouldShowFollowStats && (
+                    <button
+                      type="button"
+                      onClick={handleToggleFollow}
+                      className="rounded-full border border-primary px-3 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+                    >
+                      {isFollowing ? 'Following' : 'Follow'}
+                    </button>
+                  )}
+                </div>
               )}
-          <div className="flex gap-8 pt-3 text-sm">
-            <button
-              type="button"
-              onClick={() => setActiveModal('followers')}
-              className="hover:opacity-80 transition-opacity text-left"
-            >
-              <span className="font-bold text-text dark:text-text-dark">{profile.followersCount}</span>{' '}
-              <span className="text-textSecondary dark:text-textSecondary-dark">Followers</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveModal('following')}
-              className="hover:opacity-80 transition-opacity text-left"
-            >
-              <span className="font-bold text-text dark:text-text-dark">{profile.followingCount}</span>{' '}
-              <span className="text-textSecondary dark:text-textSecondary-dark">Following</span>
-            </button>
-            <div>
-              <span className="font-bold text-text dark:text-text-dark">{posts.length}</span>{' '}
-              <span className="text-textSecondary dark:text-textSecondary-dark">Posts</span>
-            </div>
-          </div>
+              {shouldShowFollowStats && (
+                <div className="flex gap-8 pt-3 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('followers')}
+                    className="hover:opacity-80 transition-opacity text-left"
+                  >
+                    <span className="font-bold text-text dark:text-text-dark">{profile.followersCount}</span>{' '}
+                    <span className="text-textSecondary dark:text-textSecondary-dark">Followers</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('following')}
+                    className="hover:opacity-80 transition-opacity text-left"
+                  >
+                    <span className="font-bold text-text dark:text-text-dark">{profile.followingCount}</span>{' '}
+                    <span className="text-textSecondary dark:text-textSecondary-dark">Following</span>
+                  </button>
+                  <div>
+                    <span className="font-bold text-text dark:text-text-dark">{posts.length}</span>{' '}
+                    <span className="text-textSecondary dark:text-textSecondary-dark">Posts</span>
+                  </div>
+                </div>
+              )}
         </div>
       </div>
 
@@ -603,14 +630,30 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between">
             <h2 className="border-b-2 border-primary pb-2 text-lg font-bold text-text dark:text-text-dark">Posts</h2>
             {isOwnProfile && (
-              <button
-                type="button"
-                onClick={() => setIsEntryModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-primary/90"
-              >
-                <PlusIcon className="h-3.5 w-3.5" />
-                New Post
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntryModalMode('post');
+                    setIsEntryModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-primary/90"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  New Post
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntryModalMode('review');
+                    setIsEntryModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-full border border-primary/20 bg-white px-4 py-2 text-xs font-semibold text-primary shadow-sm transition-colors duration-150 hover:bg-primary/5 dark:bg-gray-900"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  New Review
+                </button>
+              </div>
             )}
           </div>
 
@@ -621,11 +664,12 @@ export default function ProfilePage() {
                   key={item.id}
                   item={item}
                   currentUserName={currentUserName}
+                  currentUserId={String(viewer?.userId ?? profile.user.userId)}
                   onToggleLike={handleToggleLike}
                   onToggleBookmark={handleToggleBookmark}
-                  onToggleRepost={handleToggleRepost}
                   onAddComment={handleAddComment}
                   onDelete={handleDeleteItem}
+                  canDelete={isOwnProfile}
                 />
               ))}
             </AnimatePresence>
@@ -657,43 +701,32 @@ export default function ProfilePage() {
               </div>
             ) : (
               <ul className="max-h-[320px] space-y-3 overflow-y-auto pr-1 text-sm text-text dark:text-text-dark">
-                {quotes.map((quote, index) => (
+                {quotes.map((quote) => (
                   <li
-                    key={index}
-                    className="group relative flex items-start justify-between gap-3 border-b border-gray-50 dark:border-gray-800 pb-3 text-xs leading-relaxed last:border-0 last:pb-0"
+                    key={quote.id}
+                    className="group relative rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/70 p-3 text-xs leading-relaxed"
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                      <span className="font-medium italic text-textSecondary dark:text-textSecondary-dark">"{quote}"</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium italic text-textSecondary dark:text-textSecondary-dark">"{quote.quote}"</span>
+                      {isOwnProfile && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteQuote(quote.id)}
+                          className="shrink-0 rounded-full border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/30"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteQuote(index)}
-                      className="shrink-0 text-textSecondary opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-                      title="Remove quote"
-                    >
-                      &times;
-                    </button>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-textSecondary dark:text-textSecondary-dark">
+                      <span className="font-semibold text-text dark:text-text-dark">♥ {quote.likeCount}</span>
+                      <span>{quote.likeCount > 0 ? 'Likes' : 'No likes yet'}</span>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
 
-            <form onSubmit={handleAddQuote} className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-3">
-              <textarea
-                value={newQuoteText}
-                onChange={(e) => setNewQuoteText(e.target.value)}
-                placeholder="Add a memorable quote..."
-                rows={2}
-                className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2.5 text-xs text-text dark:text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
-              />
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-primary py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
-              >
-                Add Quote
-              </button>
-            </form>
           </div>
         </div>
       </div>
@@ -741,7 +774,12 @@ export default function ProfilePage() {
 
       <AnimatePresence>
         {isEntryModalOpen && (
-          <NewEntryModal key="entry-modal" onClose={() => setIsEntryModalOpen(false)} onSubmit={handleCreateEntry} />
+          <NewEntryModal
+            key={`entry-modal-${entryModalMode}`}
+            onClose={() => setIsEntryModalOpen(false)}
+            onSubmit={handleCreateEntry}
+            initialMode={entryModalMode}
+          />
         )}
       </AnimatePresence>
         </>

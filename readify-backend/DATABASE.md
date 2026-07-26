@@ -82,21 +82,24 @@ support password reset.
 | added_by | FK → users, nullable (`SET NULL` on user deletion) — who submitted it, if `source = 'user_submitted'` |
 | created_at | |
 
-**Unknown books:** when a user posts/reviews/quotes a book that isn't in
-your catalog, the plan is to create a bare-bones row here (`source =
-'user_submitted'`, just title + author, no cover/genre/rating) instead of
-allowing a null `book_id` anywhere else in the schema. Every FK across
-`reviews`, `posts`, `quotes`, `wishlist`, etc. stays `NOT NULL` and points at
-a real `book_id` either way — the recommendation model just filters or
+**Unknown books:** when a user reviews a book that isn't in your catalog,
+a bare-bones row is created here (`source = 'user_submitted'`, just title +
+author, no cover/genre/rating) instead of allowing a null `book_id`
+anywhere else in the schema. `reviews.book_id` stays `NOT NULL` and points
+at a real `book_id` either way — the recommendation model just filters or
 down-weights by `source` instead of every query having to special-case
 missing books. When the book is later matched to real catalog data, you
 just `UPDATE books SET source = 'catalog', ... WHERE book_id = X` — nothing
 else in the database needs to change, since every reference already points
 at that same stable `book_id`.
 
-The actual find-or-create lookup (matching a typed title/author against
-existing books before creating a new one) isn't built yet — that's the next
-piece, wired in whenever posts/reviews/quotes creation endpoints get built.
+The find-or-create lookup is built: `bookModel.resolveBook` (case-
+insensitive exact title+author match, or create a new `user_submitted` row)
+backs `POST /api/reviews` when the client sends `title`/`author` instead of
+`bookId`. **Only reviews use this** — `posts` and `quotes` dropped their
+`book_id` column entirely and no longer reference `books` at all, so
+`wishlist` and `reviews` are currently the only tables with a live FK into
+`books`.
 
 ### `followers` (permanent)
 | column | notes |
@@ -149,42 +152,57 @@ Both columns are indexed since these counts run constantly.
 |---|---|
 | post_id | PK |
 | user_id | FK → users |
-| book_id | FK → books |
 | caption | |
-| visibility | `'PUBLIC' \| 'PRIVATE' \| 'JUST_ME'` |
+| visibility | `'PUBLIC' \| 'PRIVATE' \| 'JUST_ME'`, `NOT NULL` |
 | created_at | |
+
+Posts are no longer linked to a book — there's no `book_id` column.
+`POST /api/posts` only accepts `caption` + `visibility`.
 
 ### `quotes` (permanent)
 | column | notes |
 |---|---|
 | quote_id | PK |
 | user_id | FK → users |
-| book_id | FK → books |
 | quote | |
-| visibility | `'PUBLIC' \| 'PRIVATE' \| 'JUST_ME'` |
+| visibility | `TEXT DEFAULT 'PUBLIC'` — unlike `posts.visibility`, this is **not**
+`NOT NULL` and has no `CHECK` restricting it to `PUBLIC \| PRIVATE \|
+JUST_ME` at the DB level |
 | created_at | |
 
-### `likes` (permanent) — supports liking posts **and** quotes
+Quotes are no longer linked to a book — there's no `book_id` column.
+`POST /api/quotes` only accepts `quote` text; it doesn't read `visibility`
+from the request body, so every quote created through the API is `PUBLIC`
+by default. `PRIVATE`/`JUST_ME` quotes would currently have to be set
+directly in the database.
+
+### `likes` (permanent) — supports liking posts, quotes, **and** reviews
 | column | notes |
 |---|---|
 | like_id | PK |
 | user_id | FK → users |
 | post_id | FK → posts, nullable |
 | quote_id | FK → quotes, nullable |
+| review_id | FK → reviews, nullable |
 | created_at | |
 
-`CHECK` constraint enforces exactly one of `post_id` / `quote_id` is set per
-row — a like is on a post *or* a quote, never both, never neither.
+`CHECK` constraint enforces exactly one of `post_id` / `quote_id` /
+`review_id` is set per row — a like is on a post, a quote, or a review,
+never more than one, never none.
 
-Two **partial unique indexes** replace a single `UNIQUE(user_id, post_id)`:
+Three **partial unique indexes** replace a single `UNIQUE(user_id, post_id)`:
 ```sql
 CREATE UNIQUE INDEX unique_post_like ON likes(user_id, post_id) WHERE post_id IS NOT NULL;
 CREATE UNIQUE INDEX unique_quote_like ON likes(user_id, quote_id) WHERE quote_id IS NOT NULL;
+CREATE UNIQUE INDEX unique_review_like ON likes(user_id, review_id) WHERE review_id IS NOT NULL;
 ```
 This is necessary because Postgres treats every `NULL` as distinct in a
 `UNIQUE` constraint — a plain `UNIQUE(user_id, post_id)` would let a user
-"like" the same quote unlimited times, since `post_id` is `NULL` on all of
-those rows.
+"like" the same quote or review unlimited times, since `post_id` is `NULL`
+on all of those rows.
+
+> No `likeController`/routes exist yet for any target — this table is
+> schema-only for now.
 
 **Quote likes expire after 24 hours; post likes don't.** See "Background
 jobs" below — only the `likes` row is deleted, never the `quotes` row, so
@@ -194,11 +212,16 @@ liked quotes can resurface later as a "memories" feature.
 | column | notes |
 |---|---|
 | comment_id | PK |
-| post_id | FK → posts |
+| post_id | FK → posts, **required** |
+| review_id | FK → reviews, nullable — set when this comment is (also) attached to a review |
 | user_id | FK → users |
 | parent_comment_id | FK → comments (self-reference), nullable — set when this comment is a reply |
 | comment | |
 | created_at | |
+
+`post_id` stays `NOT NULL` even on comments that also carry a `review_id` —
+the schema hasn't been changed to make a comment postable against a review
+alone.
 
 ### `reviews` (permanent)
 | column | notes |
@@ -253,8 +276,10 @@ ago") even after the like itself has expired.
 
 ## Design notes / open questions to revisit later
 
-- **Unknown books**: schema support (`books.source` / `books.added_by`) is in
-  place. Still need the find-or-create helper (match typed title/author
-  against existing `books` before creating a new `user_submitted` row) -
-  build this alongside whichever of posts/reviews/quotes/wishlist creation
-  endpoints comes first.
+- **Unknown books**: schema support (`books.source` / `books.added_by`) and
+  the find-or-create helper (`bookModel.resolveBook`) are both in place and
+  wired into `POST /api/reviews`. `posts` and `quotes` no longer take a
+  book at all, so extending unknown-book support to those (or to
+  `wishlist`) is the remaining piece if that comes back as a feature.
+- **`likes.review_id`**: schema and unique index exist, but there's no
+  `likeController`/routes for any target (post, quote, or review) yet.

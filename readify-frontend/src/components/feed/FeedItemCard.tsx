@@ -12,7 +12,6 @@ import {
     HeartIcon,
     LockIcon,
     MoreHorizontalIcon,
-    RepeatIcon,
     SparklesIcon,
     TrashIcon,
 } from '../icons';
@@ -23,9 +22,9 @@ import type { FeedItem } from '../../types/feed';
 interface FeedItemCardProps {
     item: FeedItem;
     currentUserName: string;
+    currentUserId?: string;
     onToggleLike: (id: string) => void;
     onToggleBookmark: (id: string) => void;
-    onToggleRepost: (id: string) => void;
     onAddComment: (itemId: string, parentCommentId: string | null, content: string) => void;
     onDelete: (id: string) => void;
     canDelete?: boolean;
@@ -34,15 +33,16 @@ interface FeedItemCardProps {
 export function FeedItemCard({
     item,
     currentUserName,
+    currentUserId,
     onToggleLike,
     onToggleBookmark,
-    onToggleRepost,
     onAddComment,
     onDelete,
     canDelete = true,
 }: FeedItemCardProps) {
     const [showComments, setShowComments] = useState(false);
     const totalComments = countComments(item.comments);
+    const isOwnPost = currentUserId ? currentUserId === item.author.id : false;
 
     return (
         <motion.article
@@ -87,7 +87,7 @@ export function FeedItemCard({
                         <div className="flex shrink-0 items-center gap-2">
                             <span className="text-xs text-textSecondary dark:text-textSecondary-dark">{formatRelativeTime(item.createdAt)}</span>
 
-                            {canDelete && (
+                            {canDelete && isOwnPost && (
                                 <DropdownMenu trigger={<MoreHorizontalIcon className="h-4 w-4" />}>
                                     {(close) => (
                                         <button
@@ -198,17 +198,6 @@ export function FeedItemCard({
                             <CommentIcon className="h-5 w-5" />
                             {totalComments}
                         </button>
-
-                        <motion.button
-                            type="button"
-                            onClick={() => onToggleRepost(item.id)}
-                            whileTap={{ scale: 1.25 }}
-                            className={`flex items-center gap-1.5 text-sm transition-colors duration-150 ${item.repostedByMe ? 'text-emerald-600' : 'hover:text-emerald-600'
-                                }`}
-                        >
-                            <RepeatIcon className="h-5 w-5" />
-                            {item.repostCount}
-                        </motion.button>
 
                         <motion.button
                             type="button"

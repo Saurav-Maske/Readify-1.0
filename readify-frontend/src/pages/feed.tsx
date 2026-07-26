@@ -9,7 +9,18 @@ import {
   MOCK_FEED_ITEMS,
 } from '../lib/mockFeedData';
 import { addCommentToTree } from '../lib/commentUtils';
+import { formatRelativeTime } from '../lib/formatRelativeTime';
 import type { CreateEntryPayload, FeedComment, FeedItem } from '../types/feed';
+
+interface FriendQuotePreview {
+  id: string;
+  authorName: string;
+  authorUsername: string;
+  content: string;
+  likedByMe: boolean;
+  likeCount: number;
+  sharedAt: string;
+}
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -22,6 +33,27 @@ function getGreeting(): string {
 export default function Feed() {
   const [items, setItems] = useState<FeedItem[]>(MOCK_FEED_ITEMS);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [entryModalMode, setEntryModalMode] = useState<'post' | 'review'>('post');
+  const [friendQuotes, setFriendQuotes] = useState<FriendQuotePreview[]>([
+    {
+      id: 'friend-quote-1',
+      authorName: 'Maya',
+      authorUsername: 'maya.reads',
+      content: 'The best stories are the ones that make you want to stay up just a little longer.',
+      likedByMe: false,
+      likeCount: 14,
+      sharedAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+    },
+    {
+      id: 'friend-quote-2',
+      authorName: 'Jules',
+      authorUsername: 'julesbookclub',
+      content: 'Reading changes the shape of your thoughts, and that is rarely a bad thing.',
+      likedByMe: true,
+      likeCount: 21,
+      sharedAt: new Date(Date.now() - 1000 * 60 * 60 * 10).toISOString(),
+    },
+  ]);
 
   const handleToggleLike = (id: string) => {
     setItems((current) =>
@@ -43,28 +75,23 @@ export default function Feed() {
     );
   };
 
-  const handleToggleRepost = (id: string) => {
-    const target = items.find((item) => item.id === id);
-    if (target) {
-      toast.success(target.repostedByMe ? 'Repost removed' : 'Reposted to your followers');
-    }
-
-    setItems((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              repostedByMe: !item.repostedByMe,
-              repostCount: item.repostedByMe ? item.repostCount - 1 : item.repostCount + 1,
-            }
-          : item
-      )
-    );
-  };
-
   const handleDeleteItem = (id: string) => {
     setItems((current) => current.filter((item) => item.id !== id));
     toast.success('Deleted');
+  };
+
+  const handleToggleFriendQuoteLike = (id: string) => {
+    setFriendQuotes((current) =>
+      current.map((quote) =>
+        quote.id === id
+          ? {
+              ...quote,
+              likedByMe: !quote.likedByMe,
+              likeCount: quote.likedByMe ? quote.likeCount - 1 : quote.likeCount + 1,
+            }
+          : quote
+      )
+    );
   };
 
   const handleAddComment = (itemId: string, parentCommentId: string | null, content: string) => {
@@ -96,7 +123,6 @@ export default function Feed() {
     const base = {
       id: `${payload.isReview ? 'review' : 'post'}-${Date.now()}`,
       author,
-      book,
       content: payload.content,
       createdAt: new Date().toISOString(),
       visibility: payload.visibility,
@@ -109,7 +135,9 @@ export default function Feed() {
       comments: [] as FeedComment[],
     };
 
-    const newItem: FeedItem = payload.isReview ? { ...base, type: 'review' } : { ...base, type: 'post' };
+    const newItem: FeedItem = payload.isReview
+      ? { ...base, type: 'review', book }
+      : { ...base, type: 'post' };
 
     setItems((current) => [newItem, ...current]);
     toast.success(payload.isReview ? 'Review published!' : 'Posted!');
@@ -125,14 +153,61 @@ export default function Feed() {
           <p className="mt-1 text-sm text-textSecondary dark:text-textSecondary-dark">Here's what your reading community is sharing</p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsEntryModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-primary/90"
-        >
-          <PlusIcon className="h-4 w-4" />
-          New Post
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setEntryModalMode('post');
+              setIsEntryModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-primary/90"
+          >
+            <PlusIcon className="h-4 w-4" />
+            New Post
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEntryModalMode('review');
+              setIsEntryModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-full border border-primary/20 bg-white px-4 py-2 text-sm font-semibold text-primary shadow-sm transition-colors duration-150 hover:bg-primary/5 dark:bg-gray-900"
+          >
+            <PlusIcon className="h-4 w-4" />
+            New Review
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-gray-100 bg-card p-5 shadow-sm dark:border-gray-800 dark:bg-card-dark">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold text-text dark:text-text-dark">Quotes from friends</h2>
+            <p className="text-sm text-textSecondary dark:text-textSecondary-dark">Shared in the last 24 hours</p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {friendQuotes.map((quote) => (
+            <div key={quote.id} className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900/70">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-text dark:text-text-dark">{quote.authorName}</p>
+                  <p className="text-xs text-textSecondary dark:text-textSecondary-dark">@{quote.authorUsername}</p>
+                </div>
+                <span className="text-xs text-textSecondary dark:text-textSecondary-dark">{formatRelativeTime(quote.sharedAt)}</span>
+              </div>
+              <p className="mt-2 text-sm italic text-textSecondary dark:text-textSecondary-dark">“{quote.content}”</p>
+              <button
+                type="button"
+                onClick={() => handleToggleFriendQuoteLike(quote.id)}
+                className={`mt-3 text-sm font-semibold transition-colors ${quote.likedByMe ? 'text-primary' : 'text-textSecondary hover:text-primary dark:text-textSecondary-dark'}`}
+              >
+                ♥ {quote.likeCount}
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -142,9 +217,9 @@ export default function Feed() {
               key={item.id}
               item={item}
               currentUserName={CURRENT_USER.name}
+              currentUserId={CURRENT_USER.id}
               onToggleLike={handleToggleLike}
               onToggleBookmark={handleToggleBookmark}
-              onToggleRepost={handleToggleRepost}
               onAddComment={handleAddComment}
               onDelete={handleDeleteItem}
             />
@@ -161,7 +236,12 @@ export default function Feed() {
 
       <AnimatePresence>
         {isEntryModalOpen && (
-          <NewEntryModal key="entry-modal" onClose={() => setIsEntryModalOpen(false)} onSubmit={handleCreateEntry} />
+          <NewEntryModal
+            key={`entry-modal-${entryModalMode}`}
+            onClose={() => setIsEntryModalOpen(false)}
+            onSubmit={handleCreateEntry}
+            initialMode={entryModalMode}
+          />
         )}
       </AnimatePresence>
     </div>
