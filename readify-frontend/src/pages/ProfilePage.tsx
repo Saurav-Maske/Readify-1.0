@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ChangeEvent } from 'r
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useParams } from 'react-router-dom';
+import { isAxiosError } from 'axios';
 import { FeedItemCard } from '../components/feed/FeedItemCard';
 import { NewEntryModal } from '../components/feed/NewEntryModal';
 import { PlusIcon } from '../components/icons';
@@ -73,6 +74,82 @@ function toFeedItem(post: BackendPost, profile: BackendUser): FeedItem {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Demo data: shown when the backend is unreachable (network/connection error),
+// so the page still renders something meaningful instead of a blank error.
+// This is local-only — nothing here is ever persisted to a server.
+// Done so that frontend can be viewed and changed without the need of server.
+// ---------------------------------------------------------------------------
+
+const DEMO_USER: BackendUser = {
+  userId: 0,
+  name: 'Jordan Rivera',
+  username: 'jordan.reads',
+  profilePicture: null,
+  bio: 'Fantasy & sci-fi enthusiast 📚 Currently reading through the Cosmere.',
+};
+
+const DEMO_PROFILE: ProfileResponse = {
+  user: DEMO_USER,
+  isOwnProfile: true,
+  relationship: 'self',
+  followersCount: 128,
+  followingCount: 94,
+};
+
+const DEMO_POSTS: FeedItem[] = [
+  {
+    id: 'demo-1',
+    type: 'review',
+    author: { id: '0', name: DEMO_USER.name, username: DEMO_USER.username, avatarUrl: undefined },
+    book: { id: 'demo-book-1', title: 'The Way of Kings', author: 'Brandon Sanderson', rating: 5 },
+    content: "An absolute masterclass in worldbuilding. Couldn't put it down.",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
+    visibility: 'public',
+    likeCount: 24,
+    commentCount: 0,
+    repostCount: 2,
+    likedByMe: false,
+    bookmarkedByMe: false,
+    repostedByMe: false,
+    comments: [],
+  },
+  {
+    id: 'demo-2',
+    type: 'post',
+    author: { id: '0', name: DEMO_USER.name, username: DEMO_USER.username, avatarUrl: undefined },
+    book: undefined,
+    content: 'Starting a new series this weekend, taking recommendations!',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 30).toISOString(),
+    visibility: 'public',
+    likeCount: 9,
+    commentCount: 0,
+    repostCount: 0,
+    likedByMe: false,
+    bookmarkedByMe: false,
+    repostedByMe: false,
+    comments: [],
+  },
+];
+
+const DEMO_QUOTES: string[] = [
+  'Life before death, strength before weakness, journey before destination.',
+  'It is our choices that show what we truly are, far more than our abilities.',
+];
+
+/**
+ * True when a request failed because the backend couldn't be reached at all
+ * (connection refused, DNS failure, timeout, CORS, etc) — as opposed to a
+ * real server response like a 404 "user not found" or a 401.
+ */
+function isBackendUnreachable(error: unknown): boolean {
+  if (isAxiosError(error)) {
+    // No response means the request never made it to a server.
+    return !error.response;
+  }
+  return false;
+}
+
 export default function ProfilePage() {
   const { username: viewedUsername } = useParams<{ username: string }>();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
@@ -80,6 +157,7 @@ export default function ProfilePage() {
   const [posts, setPosts] = useState<FeedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
   const [quotes, setQuotes] = useState<string[]>([]);
   const [newQuoteText, setNewQuoteText] = useState('');
@@ -116,6 +194,7 @@ export default function ProfilePage() {
     async function loadProfile() {
       setIsLoading(true);
       setLoadError('');
+      setIsDemoMode(false);
       try {
         const viewerResponse = await apiClient.get<{ user: BackendUser }>('/auth/me');
         const currentViewer = viewerResponse.data.user;
@@ -136,12 +215,26 @@ export default function ProfilePage() {
         setPosts(postsResponse.data.posts.map((post) => toFeedItem(post, profileResponse.data.user)));
         setQuotes(quotesResponse.data.quotes.map((quote) => quote.quote));
         setBioDraft(profileResponse.data.user.bio ?? '');
-      } catch {
+      } catch (error) {
         if (!isCurrentRequest) return;
-        setLoadError('Unable to load this profile. Please try again.');
-        setProfile(null);
-        setPosts([]);
-        setQuotes([]);
+
+        if (isBackendUnreachable(error)) {
+          // Backend isn't running/reachable — fall back to local demo data
+          // instead of showing an error, so the page still demonstrates the UI.
+          setViewer(DEMO_USER);
+          setProfile(DEMO_PROFILE);
+          setPosts(DEMO_POSTS);
+          setQuotes(DEMO_QUOTES);
+          setBioDraft(DEMO_USER.bio ?? '');
+          setIsDemoMode(true);
+        } else {
+          // Real server error (e.g. 404 user not found, 401, 500) — keep
+          // showing the actual error instead of masking it with demo data.
+          setLoadError('Unable to load this profile. Please try again.');
+          setProfile(null);
+          setPosts([]);
+          setQuotes([]);
+        }
       } finally {
         if (isCurrentRequest) setIsLoading(false);
       }
@@ -160,6 +253,15 @@ export default function ProfilePage() {
   const handleSaveBio = async (event: FormEvent) => {
     event.preventDefault();
     if (!isOwnProfile || isSavingProfile) return;
+
+    if (isDemoMode) {
+      // No backend to persist to — just update local state.
+      setProfile((current) => (current ? { ...current, user: { ...current.user, bio: bioDraft } } : current));
+      setActiveProfileEditor(null);
+      toast.success('Bio updated (demo mode — not saved to a server)');
+      return;
+    }
+
     setIsSavingProfile(true);
     try {
       const formData = new FormData();
@@ -182,6 +284,19 @@ export default function ProfilePage() {
   const handleSavePhoto = async (event: FormEvent) => {
     event.preventDefault();
     if (!isOwnProfile || isSavingProfile || !photoFile) return;
+
+    if (isDemoMode) {
+      // No backend to persist to — just update local state with the local preview URL.
+      setProfile((current) =>
+        current ? { ...current, user: { ...current.user, profilePicture: photoPreview } } : current
+      );
+      setViewer((current) => (current ? { ...current, profilePicture: photoPreview } : current));
+      setPhotoFile(null);
+      setActiveProfileEditor(null);
+      toast.success('Profile photo updated (demo mode — not saved to a server)');
+      return;
+    }
+
     setIsSavingProfile(true);
     try {
       const formData = new FormData();
@@ -321,6 +436,12 @@ export default function ProfilePage() {
 
       {!isLoading && profile && (
         <>
+          {isDemoMode && (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-xs font-medium text-amber-800 dark:text-amber-200">
+              Showing demo data — the backend isn't reachable right now. Changes here won't be saved.
+            </div>
+          )}
+
           {/* Profile Header */}
           <div className="flex items-start gap-6 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-6 shadow-sm">
             <Avatar
