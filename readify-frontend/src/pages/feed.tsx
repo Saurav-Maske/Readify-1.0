@@ -33,6 +33,7 @@ function getGreeting(): string {
 export default function Feed() {
   const [items, setItems] = useState<FeedItem[]>(MOCK_FEED_ITEMS);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [entryModalMode, setEntryModalMode] = useState<'post' | 'review'>('post');
   const [friendQuotes, setFriendQuotes] = useState<FriendQuotePreview[]>([
     {
       id: 'friend-quote-1',
@@ -122,7 +123,6 @@ export default function Feed() {
     const base = {
       id: `${payload.isReview ? 'review' : 'post'}-${Date.now()}`,
       author,
-      book,
       content: payload.content,
       createdAt: new Date().toISOString(),
       visibility: payload.visibility,
@@ -135,7 +135,9 @@ export default function Feed() {
       comments: [] as FeedComment[],
     };
 
-    const newItem: FeedItem = payload.isReview ? { ...base, type: 'review' } : { ...base, type: 'post' };
+    const newItem: FeedItem = payload.isReview
+      ? { ...base, type: 'review', book }
+      : { ...base, type: 'post' };
 
     setItems((current) => [newItem, ...current]);
     toast.success(payload.isReview ? 'Review published!' : 'Posted!');
@@ -151,14 +153,30 @@ export default function Feed() {
           <p className="mt-1 text-sm text-textSecondary dark:text-textSecondary-dark">Here's what your reading community is sharing</p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsEntryModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-primary/90"
-        >
-          <PlusIcon className="h-4 w-4" />
-          New Post
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setEntryModalMode('post');
+              setIsEntryModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-primary/90"
+          >
+            <PlusIcon className="h-4 w-4" />
+            New Post
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEntryModalMode('review');
+              setIsEntryModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-full border border-primary/20 bg-white px-4 py-2 text-sm font-semibold text-primary shadow-sm transition-colors duration-150 hover:bg-primary/5 dark:bg-gray-900"
+          >
+            <PlusIcon className="h-4 w-4" />
+            New Review
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 rounded-2xl border border-gray-100 bg-card p-5 shadow-sm dark:border-gray-800 dark:bg-card-dark">
@@ -218,7 +236,12 @@ export default function Feed() {
 
       <AnimatePresence>
         {isEntryModalOpen && (
-          <NewEntryModal key="entry-modal" onClose={() => setIsEntryModalOpen(false)} onSubmit={handleCreateEntry} />
+          <NewEntryModal
+            key={`entry-modal-${entryModalMode}`}
+            onClose={() => setIsEntryModalOpen(false)}
+            onSubmit={handleCreateEntry}
+            initialMode={entryModalMode}
+          />
         )}
       </AnimatePresence>
     </div>

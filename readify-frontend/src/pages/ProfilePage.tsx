@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useParams } from 'react-router-dom';
@@ -167,9 +167,8 @@ export default function ProfilePage() {
   const [loadError, setLoadError] = useState('');
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [entryModalMode, setEntryModalMode] = useState<'post' | 'review'>('post');
   const [quotes, setQuotes] = useState<ProfileQuote[]>([]);
-  const [newQuoteText, setNewQuoteText] = useState('');
-  const [showQuoteComposer, setShowQuoteComposer] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [activeProfileEditor, setActiveProfileEditor] = useState<'bio' | 'photo' | null>(null);
   const [bioDraft, setBioDraft] = useState('');
@@ -418,7 +417,6 @@ export default function ProfilePage() {
     const base = {
       id: `${payload.isReview ? 'review' : 'post'}-${Date.now()}`,
       author,
-      book,
       content: payload.content,
       createdAt: new Date().toISOString(),
       visibility: payload.visibility,
@@ -431,29 +429,12 @@ export default function ProfilePage() {
       comments: [] as FeedComment[],
     };
 
-    const newItem: FeedItem = payload.isReview ? { ...base, type: 'review' } : { ...base, type: 'post' };
+    const newItem: FeedItem = payload.isReview
+      ? { ...base, type: 'review', book }
+      : { ...base, type: 'post' };
 
     setPosts((current) => [newItem, ...current]);
     toast.success(payload.isReview ? 'Review published!' : 'Posted!');
-  };
-
-  const handleAddQuote = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmedQuote = newQuoteText.trim();
-    if (!trimmedQuote) return;
-
-    setQuotes((current) => [
-      {
-        id: `quote-${Date.now()}`,
-        quote: trimmedQuote,
-        likedByMe: false,
-        likeCount: 0,
-      },
-      ...current,
-    ]);
-    setNewQuoteText('');
-    setShowQuoteComposer(false);
-    toast.success('Quote added!');
   };
 
   const handleDeleteQuote = (id: string) => {
@@ -649,14 +630,30 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between">
             <h2 className="border-b-2 border-primary pb-2 text-lg font-bold text-text dark:text-text-dark">Posts</h2>
             {isOwnProfile && (
-              <button
-                type="button"
-                onClick={() => setIsEntryModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-primary/90"
-              >
-                <PlusIcon className="h-3.5 w-3.5" />
-                New Post
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntryModalMode('post');
+                    setIsEntryModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-primary/90"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  New Post
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntryModalMode('review');
+                    setIsEntryModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-full border border-primary/20 bg-white px-4 py-2 text-xs font-semibold text-primary shadow-sm transition-colors duration-150 hover:bg-primary/5 dark:bg-gray-900"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  New Review
+                </button>
+              </div>
             )}
           </div>
 
@@ -715,10 +712,9 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => handleDeleteQuote(quote.id)}
-                          className="shrink-0 text-textSecondary transition-opacity hover:text-red-500"
-                          title="Remove quote"
+                          className="shrink-0 rounded-full border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/30"
                         >
-                          &times;
+                          Delete
                         </button>
                       )}
                     </div>
@@ -731,35 +727,6 @@ export default function ProfilePage() {
               </ul>
             )}
 
-            {isOwnProfile && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setShowQuoteComposer((current) => !current)}
-                  className="w-full rounded-xl border border-primary/20 bg-primary/5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
-                >
-                  {showQuoteComposer ? 'Cancel' : 'Add Quote'}
-                </button>
-
-                {showQuoteComposer && (
-                  <form onSubmit={handleAddQuote} className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-3">
-                    <textarea
-                      value={newQuoteText}
-                      onChange={(e) => setNewQuoteText(e.target.value)}
-                      placeholder="Add a memorable quote..."
-                      rows={2}
-                      className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2.5 text-xs text-text dark:text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
-                    />
-                    <button
-                      type="submit"
-                      className="w-full rounded-xl bg-primary py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
-                    >
-                      Save Quote
-                    </button>
-                  </form>
-                )}
-              </>
-            )}
           </div>
         </div>
       </div>
@@ -807,7 +774,12 @@ export default function ProfilePage() {
 
       <AnimatePresence>
         {isEntryModalOpen && (
-          <NewEntryModal key="entry-modal" onClose={() => setIsEntryModalOpen(false)} onSubmit={handleCreateEntry} />
+          <NewEntryModal
+            key={`entry-modal-${entryModalMode}`}
+            onClose={() => setIsEntryModalOpen(false)}
+            onSubmit={handleCreateEntry}
+            initialMode={entryModalMode}
+          />
         )}
       </AnimatePresence>
         </>

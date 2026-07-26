@@ -1,50 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { StarRating } from "../components/ui/StarRating";
-import { BookOpen, TrendingUp, Flame, BarChart3, Plus, X } from "lucide-react";
+import { Plus, X, CheckCircle2, Trash2 } from "lucide-react";
+import { NewEntryModal } from "../components/feed/NewEntryModal";
+import type { CreateEntryPayload } from "../types/feed";
 
-// ---- Types ----
 interface ShelfBook {
   id: string;
   title: string;
   author: string;
   coverUrl: string;
-  rating: number; // 0-5
-  progress: number; // 0-100, only relevant for "currently-reading"
-}
-
-interface ShelfStats {
-  totalRead: number;
-  thisYear: number;
-  dayStreak: number;
-  pagesRead: number;
+  rating: number;
+  status: ShelfTab;
+  reviewPrompted?: boolean;
 }
 
 type ShelfTab = "currently-reading" | "want-to-read" | "finished";
 
 const TABS: { key: ShelfTab; label: string }[] = [
   { key: "currently-reading", label: "Currently Reading" },
-  { key: "want-to-read", label: "Want to Read" },
+  { key: "want-to-read", label: "Wishlist" },
   { key: "finished", label: "Finished" },
 ];
 
 export default function MyShelfPage() {
   const [activeTab, setActiveTab] = useState<ShelfTab>("currently-reading");
-  const [stats, setStats] = useState<ShelfStats | null>(null);
   const [booksByTab, setBooksByTab] = useState<Record<ShelfTab, ShelfBook[]>>({
     "currently-reading": [],
     "want-to-read": [],
     finished: [],
   });
   const [isLoading, setIsLoading] = useState(true);
-
-  // Add Book Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
   const [newStatus, setNewStatus] = useState<ShelfTab>("want-to-read");
   const [newRating, setNewRating] = useState(5);
-  const [newProgress, setNewProgress] = useState(0);
+  const [isFinishPromptOpen, setIsFinishPromptOpen] = useState(false);
+  const [bookToFinish, setBookToFinish] = useState<ShelfBook | null>(null);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [composerMode, setComposerMode] = useState<'post' | 'review'>('review');
+  const [composerPrefill, setComposerPrefill] = useState<{ title: string; author: string } | null>(null);
 
   useEffect(() => {
     // ============================================================
@@ -68,8 +64,6 @@ export default function MyShelfPage() {
     // loadShelf();
     // ============================================================
 
-    // Temporary mock data with items across all tabs for testing
-    setStats({ totalRead: 312, thisYear: 47, dayStreak: 47, pagesRead: 47000 });
     setBooksByTab({
       "currently-reading": [
         {
@@ -78,7 +72,7 @@ export default function MyShelfPage() {
           author: "Gabrielle Zevin",
           coverUrl: "",
           rating: 5,
-          progress: 68,
+          status: "currently-reading",
         },
         {
           id: "2",
@@ -86,15 +80,7 @@ export default function MyShelfPage() {
           author: "Olivie Blake",
           coverUrl: "",
           rating: 5,
-          progress: 32,
-        },
-        {
-          id: "3",
-          title: "The Covenant of Water",
-          author: "Abraham Verghese",
-          coverUrl: "",
-          rating: 5,
-          progress: 15,
+          status: "currently-reading",
         },
       ],
       "want-to-read": [
@@ -104,7 +90,7 @@ export default function MyShelfPage() {
           author: "James Clear",
           coverUrl: "",
           rating: 0,
-          progress: 0,
+          status: "want-to-read",
         },
         {
           id: "5",
@@ -112,7 +98,7 @@ export default function MyShelfPage() {
           author: "Andy Weir",
           coverUrl: "",
           rating: 0,
-          progress: 0,
+          status: "want-to-read",
         },
       ],
       finished: [
@@ -122,28 +108,17 @@ export default function MyShelfPage() {
           author: "Frank Herbert",
           coverUrl: "",
           rating: 5,
-          progress: 100,
+          status: "finished",
         },
       ],
     });
     setIsLoading(false);
   }, []);
 
-  const formatPages = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`);
-
-  const statCards = stats
-    ? [
-        { icon: BookOpen, value: stats.totalRead, label: "Total Read" },
-        { icon: TrendingUp, value: stats.thisYear, label: "This Year" },
-        { icon: Flame, value: stats.dayStreak, label: "Day Streak" },
-        { icon: BarChart3, value: formatPages(stats.pagesRead), label: "Pages Read" },
-      ]
-    : [];
-
   const activeBooks = booksByTab[activeTab] ?? [];
 
   // Handle Add Book Submission
-  const handleAddBookSubmit = async (e: React.FormEvent) => {
+  const handleAddBookSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newAuthor.trim()) return;
 
@@ -153,7 +128,7 @@ export default function MyShelfPage() {
       author: newAuthor,
       coverUrl: "",
       rating: newRating,
-      progress: newStatus === "currently-reading" ? newProgress : newStatus === "finished" ? 100 : 0,
+      status: newStatus,
     };
 
     // ============================================================
@@ -184,9 +159,28 @@ export default function MyShelfPage() {
     // Reset Form & Close Modal
     setNewTitle("");
     setNewAuthor("");
-    setNewProgress(0);
     setNewRating(5);
     setIsModalOpen(false);
+  };
+
+  const handleMoveToFinished = (bookId: string) => {
+    const bookToMove = booksByTab["currently-reading"].find((book) => book.id === bookId);
+    if (!bookToMove) return;
+
+    setBooksByTab((prev) => ({
+      ...prev,
+      "currently-reading": prev["currently-reading"].filter((book) => book.id !== bookId),
+      finished: [{ ...bookToMove, rating: 5, status: "finished" }, ...prev.finished],
+    }));
+
+    setBookToFinish(bookToMove);
+    setIsFinishPromptOpen(true);
+  };
+
+  const handleCreateEntry = async (payload: CreateEntryPayload) => {
+    if (!payload.content.trim()) return;
+    setIsComposerOpen(false);
+    setComposerPrefill(null);
   };
 
   return (
@@ -205,23 +199,6 @@ export default function MyShelfPage() {
             <Plus size={16} />
             Add Book
           </button>
-        </div>
-
-        {/* Stats row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {isLoading
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-5 h-[120px] animate-pulse" />
-              ))
-            : statCards.map(({ icon: Icon, value, label }) => (
-                <div key={label} className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm">
-                  <div className="w-9 h-9 rounded-full bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center mb-3">
-                    <Icon size={18} className="text-indigo-600" />
-                  </div>
-                  <div className="text-2xl font-bold text-text dark:text-text-dark">{value}</div>
-                  <div className="text-sm text-textSecondary dark:text-textSecondary-dark">{label}</div>
-                </div>
-              ))}
         </div>
 
         {/* Interactive Tabs */}
@@ -271,18 +248,30 @@ export default function MyShelfPage() {
                   </div>
 
                   {activeTab === "currently-reading" && (
-                    <div className="mt-3">
-                      <div className="flex justify-between text-xs text-textSecondary dark:text-textSecondary-dark mb-1">
-                        <span>Progress</span>
-                        <span className="text-indigo-600 font-medium">{book.progress}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-indigo-600 rounded-full transition-all duration-300"
-                          style={{ width: `${book.progress}%` }}
-                        />
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveToFinished(book.id)}
+                      className="mt-3 inline-flex items-center gap-2 rounded-full border border-indigo-200 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950"
+                    >
+                      <CheckCircle2 size={14} />
+                      Finished reading
+                    </button>
+                  )}
+
+                  {activeTab === "want-to-read" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBooksByTab((prev) => ({
+                          ...prev,
+                          "want-to-read": prev["want-to-read"].filter((item) => item.id !== book.id),
+                        }))
+                      }
+                      className="mt-3 inline-flex items-center gap-2 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30"
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
                   )}
                 </div>
               </div>
@@ -342,26 +331,10 @@ export default function MyShelfPage() {
                     className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-900 text-text dark:text-text-dark focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="currently-reading">Currently Reading</option>
-                    <option value="want-to-read">Want to Read</option>
+                    <option value="want-to-read">Wishlist</option>
                     <option value="finished">Finished</option>
                   </select>
                 </div>
-
-                {newStatus === "currently-reading" && (
-                  <div>
-                    <label className="block text-xs font-semibold text-textSecondary dark:text-textSecondary-dark uppercase tracking-wider mb-1">
-                      Reading Progress (%)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={newProgress}
-                      onChange={(e) => setNewProgress(Number(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-text dark:text-text-dark rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                )}
 
                 <div className="flex justify-end gap-3 mt-6">
                   <button
@@ -382,6 +355,54 @@ export default function MyShelfPage() {
             </div>
           </div>
         )}
+
+        {isFinishPromptOpen && bookToFinish && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-[60] p-4">
+            <div className="bg-white dark:bg-card-dark rounded-2xl max-w-md w-full p-6 shadow-xl">
+              <h2 className="text-xl font-bold text-text dark:text-text-dark">Finished reading?</h2>
+              <p className="mt-2 text-sm text-textSecondary dark:text-textSecondary-dark">
+                Would you like to leave a review for {bookToFinish.title} and share your thoughts?
+              </p>
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFinishPromptOpen(false);
+                    setBookToFinish(null);
+                  }}
+                  className="rounded-xl px-4 py-2 text-sm font-medium text-textSecondary hover:bg-gray-100 dark:text-textSecondary-dark dark:hover:bg-gray-800"
+                >
+                  Skip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComposerPrefill({ title: bookToFinish.title, author: bookToFinish.author });
+                    setComposerMode('review');
+                    setIsComposerOpen(true);
+                    setIsFinishPromptOpen(false);
+                    setBookToFinish(null);
+                  }}
+                  className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
+                >
+                  Write a review
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <NewEntryModal
+          isOpen={isComposerOpen}
+          onClose={() => {
+            setIsComposerOpen(false);
+            setComposerPrefill(null);
+          }}
+          onSubmit={handleCreateEntry}
+          initialMode={composerMode}
+          initialBookTitle={composerPrefill?.title ?? ""}
+          initialBookAuthor={composerPrefill?.author ?? ""}
+        />
       </div>
     </DashboardLayout>
   );
