@@ -74,7 +74,7 @@ export default function OtpVerificationPage() {
       const response = await apiClient.post('/auth/verify-otp', { gmail, otp });
       localStorage.setItem('readify_token', response.data.token);
       showSuccess('Account verified successfully.');
-      navigate('/questions');
+      navigate('/');
     } catch (error) {
       showError(extractErrorMessage(error));
     } finally {

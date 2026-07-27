@@ -1,5 +1,11 @@
 const pool = require('../config/db');
 
+// Placeholder cover used for a user-submitted book when no cover image was
+// supplied. Intentionally a dead link (returns 404) rather than null/empty,
+// per product requirement - the frontend's <img> onError fallback treats it
+// the same way it treats any other broken cover URL.
+const NOT_FOUND_COVER_IMAGE = '/covers/404-not-found.jpg';
+
 // ---------------------------------------------------------------------------
 // GET /api/books/:bookId
 // ---------------------------------------------------------------------------
@@ -41,7 +47,7 @@ async function create({ title, author, genre = null, publishedDate = null, cover
     `INSERT INTO books (title, author, genre, published_date, cover_image, source, added_by)
      VALUES ($1, $2, $3, $4, $5, 'user_submitted', $6)
      RETURNING *`,
-    [title, author, genre, publishedDate, coverImage, addedBy]
+    [title, author, genre, publishedDate, coverImage || NOT_FOUND_COVER_IMAGE, addedBy]
   );
   return rows[0];
 }

@@ -24,6 +24,10 @@ router.post('/me/shelf', requireAuth, shelfController.addToShelf);
 router.patch('/me/shelf/:bookId/finish', requireAuth, shelfController.finishBook);
 router.delete('/me/shelf/:status/:bookId', requireAuth, shelfController.removeFromShelf);
 
+// "Remove follower" - removes someone from MY OWN followers list. Placed
+// above /:username so it's never shadowed by the param route.
+router.delete('/me/followers/:username', requireAuth, followController.removeFollower);
+
 // All three work for logged-out visitors (public profile pages), but behave
 // differently if the visitor happens to be logged in as the profile owner.
 router.post('/reading-preferences', requireAuth, onboardingController.saveReadingPreferences);
@@ -33,5 +37,7 @@ router.get('/:username', optionalAuth, profileController.getProfile);
 router.get('/:username/quotes', optionalAuth, profileController.getRecentQuotes);
 router.get('/:username/posts', optionalAuth, profileController.getPosts);
 router.get('/:username/reviews', optionalAuth, profileController.getReviews);
+router.get('/:username/followers', optionalAuth, followController.getFollowers);
+router.get('/:username/following', optionalAuth, followController.getFollowing);
 
 module.exports = router;

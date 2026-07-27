@@ -105,6 +105,7 @@ function formatReview(r) {
       bookId: r.book_id,
       title: r.book_title,
       author: r.book_author,
+      coverImage: r.book_cover_image,
       // Average across all reviews for this book, not this reviewer's own rating above.
       rating: r.book_rating !== undefined ? Number(r.book_rating) : undefined,
       noOfRatings: r.book_no_of_ratings,

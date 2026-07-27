@@ -92,6 +92,8 @@ export interface CreateEntryPayload {
   isReview: boolean;
   bookTitle: string;
   bookAuthor: string;
+  /** Set only when the user picked a suggestion from the book title autocomplete. */
+  bookId?: string;
   rating: number;
   content: string;
   visibility: PostVisibility;

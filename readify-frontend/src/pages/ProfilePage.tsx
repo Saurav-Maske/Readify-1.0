@@ -12,7 +12,7 @@ import apiClient from '../lib/api';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ?? 'http://localhost:4000';
 
-function resolveProfilePicture(url: string | null | undefined): string | undefined {
+function resolveMediaUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
   if (url.startsWith('http')) return url;
   return `${API_BASE}${url}`;
@@ -26,13 +26,29 @@ interface BackendUser {
   bio: string | null;
 }
 
+type FollowState = 'self' | 'mutual' | 'following' | 'follower' | 'stranger';
+
 interface ProfileResponse {
   user: BackendUser;
   isOwnProfile: boolean;
   relationship: 'self' | 'friend' | 'stranger';
+  // Richer than `relationship` above (which only exists for the visibility
+  // rules and collapses to 'stranger' for any one-sided follow). This is
+  // what the profile header actually displays.
+  followState: FollowState;
+  viewerFollowsTarget: boolean;
+  targetFollowsViewer: boolean;
   followersCount: number;
   followingCount: number;
   reviewsCount: number;
+}
+
+interface FollowListEntry {
+  userId: number;
+  name: string;
+  username: string;
+  profilePicture: string | null;
+  isFollowedByViewer: boolean;
 }
 
 interface BackendPost {
@@ -49,7 +65,7 @@ interface BackendReview {
   rating: number;
   review: string;
   createdAt: string;
-  book: { bookId: number; title: string; author: string; rating?: number };
+  book: { bookId: number; title: string; author: string; coverImage?: string | null; rating?: number };
 }
 
 interface BackendQuote {
@@ -73,7 +89,7 @@ function toFeedItem(post: BackendPost, profile: BackendUser): FeedItem {
       id: String(profile.userId),
       name: profile.name,
       username: profile.username,
-      avatarUrl: resolveProfilePicture(profile.profilePicture),
+      avatarUrl: resolveMediaUrl(profile.profilePicture),
     },
     book: post.book
       ? { id: String(post.book.bookId), title: post.book.title, author: post.book.author, rating: 0 }
@@ -99,12 +115,13 @@ function toReviewFeedItem(review: BackendReview, profile: BackendUser): FeedItem
       id: String(profile.userId),
       name: profile.name,
       username: profile.username,
-      avatarUrl: resolveProfilePicture(profile.profilePicture),
+      avatarUrl: resolveMediaUrl(profile.profilePicture),
     },
     book: {
       id: String(review.book.bookId),
       title: review.book.title,
       author: review.book.author,
+      coverUrl: resolveMediaUrl(review.book.coverImage),
       // The book's average rating (from the books table), not this reviewer's rating.
       rating: review.book.rating ?? review.rating,
     },
@@ -141,6 +158,9 @@ const DEMO_PROFILE: ProfileResponse = {
   user: DEMO_USER,
   isOwnProfile: true,
   relationship: 'self',
+  followState: 'self',
+  viewerFollowsTarget: false,
+  targetFollowsViewer: false,
   followersCount: 128,
   followingCount: 94,
   reviewsCount: 1,
@@ -203,6 +223,22 @@ function isBackendUnreachable(error: unknown): boolean {
   return false;
 }
 
+// Follows only one way ("A follows B but B doesn't follow A") reads as a
+// one-sided relation instead of lumping it in with true strangers.
+function getFollowStateLabel(state: FollowState): string {
+  switch (state) {
+    case 'mutual':
+      return 'Mutual';
+    case 'following':
+    case 'follower':
+      return 'One-sided relation';
+    case 'stranger':
+      return 'Stranger';
+    default:
+      return '';
+  }
+}
+
 export default function ProfilePage() {
   const { username: viewedUsername } = useParams<{ username: string }>();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
@@ -224,6 +260,9 @@ export default function ProfilePage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const [activeModal, setActiveModal] = useState<'followers' | 'following' | null>(null);
+  const [followListEntries, setFollowListEntries] = useState<FollowListEntry[]>([]);
+  const [isLoadingFollowList, setIsLoadingFollowList] = useState(false);
+  const [followListError, setFollowListError] = useState('');
 
   // Photo editor state
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -285,7 +324,7 @@ export default function ProfilePage() {
             likeCount: 0,
           }))
         );
-        setIsFollowing(profileResponse.data.relationship === 'friend');
+        setIsFollowing(profileResponse.data.viewerFollowsTarget);
         setBioDraft(profileResponse.data.user.bio ?? '');
       } catch (error) {
         if (!isCurrentRequest) return;
@@ -455,11 +494,114 @@ export default function ProfilePage() {
             `/users/${encodeURIComponent(profile.user.username)}/follow`
           );
       setIsFollowing(response.data.following);
-      setProfile((current) => (current ? { ...current, followersCount: response.data.followersCount } : current));
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              followersCount: response.data.followersCount,
+              viewerFollowsTarget: response.data.following,
+              followState: response.data.following
+                ? current.targetFollowsViewer
+                  ? 'mutual'
+                  : 'following'
+                : current.targetFollowsViewer
+                  ? 'follower'
+                  : 'stranger',
+            }
+          : current
+      );
       toast.success(response.data.following ? 'Following' : 'Unfollowed');
     } catch {
       setIsFollowing(wasFollowing);
       toast.error('Unable to update follow status. Please try again.');
+    }
+  };
+
+  // Loads the followers/following list whenever the panel is opened, and
+  // locks background scroll while it's open ("don't let the outside be
+  // scrollable") - the list itself is the only scrollable region.
+  useEffect(() => {
+    if (!activeModal) {
+      document.body.style.overflow = '';
+      return;
+    }
+
+    document.body.style.overflow = 'hidden';
+
+    if (isDemoMode || !profile) {
+      setFollowListEntries([]);
+      setFollowListError('');
+      setIsLoadingFollowList(false);
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+
+    let isCurrent = true;
+    setIsLoadingFollowList(true);
+    setFollowListError('');
+
+    const endpoint = activeModal === 'followers' ? 'followers' : 'following';
+    apiClient
+      .get<{ followers?: FollowListEntry[]; following?: FollowListEntry[] }>(
+        `/users/${encodeURIComponent(profile.user.username)}/${endpoint}`,
+        { params: { limit: 50, offset: 0 } }
+      )
+      .then((response) => {
+        if (!isCurrent) return;
+        setFollowListEntries(response.data.followers ?? response.data.following ?? []);
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        setFollowListError('Unable to load this list. Please try again.');
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingFollowList(false);
+      });
+
+    return () => {
+      isCurrent = false;
+      document.body.style.overflow = '';
+    };
+  }, [activeModal, isDemoMode, profile]);
+
+  // "Remove follower" - only available on your own profile's Followers list.
+  const handleRemoveFollower = async (entry: FollowListEntry) => {
+    if (isDemoMode) {
+      setFollowListEntries((current) => current.filter((e) => e.userId !== entry.userId));
+      setProfile((current) => (current ? { ...current, followersCount: Math.max(current.followersCount - 1, 0) } : current));
+      toast.success(`Removed ${entry.name} (demo mode — not saved to a server)`);
+      return;
+    }
+
+    try {
+      const response = await apiClient.delete<{ removed: boolean; followersCount: number }>(
+        `/users/me/followers/${encodeURIComponent(entry.username)}`
+      );
+      setFollowListEntries((current) => current.filter((e) => e.userId !== entry.userId));
+      setProfile((current) => (current ? { ...current, followersCount: response.data.followersCount } : current));
+      toast.success(`Removed ${entry.name} from your followers`);
+    } catch {
+      toast.error('Unable to remove this follower. Please try again.');
+    }
+  };
+
+  // "Remove following" - unfollowing someone directly from the Following list.
+  const handleRemoveFollowing = async (entry: FollowListEntry) => {
+    if (isDemoMode) {
+      setFollowListEntries((current) => current.filter((e) => e.userId !== entry.userId));
+      setProfile((current) => (current ? { ...current, followingCount: Math.max(current.followingCount - 1, 0) } : current));
+      toast.success(`Unfollowed ${entry.name} (demo mode — not saved to a server)`);
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/users/${encodeURIComponent(entry.username)}/follow`);
+      setFollowListEntries((current) => current.filter((e) => e.userId !== entry.userId));
+      setProfile((current) => (current ? { ...current, followingCount: Math.max(current.followingCount - 1, 0) } : current));
+      toast.success(`Unfollowed ${entry.name}`);
+    } catch {
+      toast.error('Unable to unfollow this user. Please try again.');
     }
   };
 
@@ -580,8 +722,11 @@ export default function ProfilePage() {
         const response = await apiClient.post<{ review: BackendReview }>('/reviews', {
           rating: payload.rating,
           review: payload.content,
-          title: payload.bookTitle,
-          author: payload.bookAuthor,
+          // If the user picked a suggestion, send its bookId so the backend
+          // reuses that exact book instead of matching by title+author.
+          ...(payload.bookId
+            ? { bookId: Number(payload.bookId) }
+            : { title: payload.bookTitle, author: payload.bookAuthor }),
         });
         setReviews((current) => [toReviewFeedItem(response.data.review, profile!.user), ...current]);
         toast.success('Review published!');
@@ -659,7 +804,7 @@ export default function ProfilePage() {
           <div className="flex items-start gap-6 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-6 shadow-sm">
             <Avatar
               name={profile.user.name}
-              src={photoPreview ?? resolveProfilePicture(profile.user.profilePicture)}
+              src={photoPreview ?? resolveMediaUrl(profile.user.profilePicture)}
               size="lg"
               className="h-24 w-24 border-2 border-white text-2xl shadow-md"
             />
@@ -783,7 +928,7 @@ export default function ProfilePage() {
               )}
               {!profile.isOwnProfile && (
                 <div className="flex flex-wrap items-center gap-3 pt-1">
-                  <p className="text-xs font-medium capitalize text-primary">{profile.relationship}</p>
+                  <p className="text-xs font-medium text-primary">{getFollowStateLabel(profile.followState)}</p>
                   {shouldShowFollowStats && (
                     <button
                       type="button"
@@ -1013,17 +1158,21 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Followers / Following Modal */}
+      {/* Followers / Following panel - no dark backdrop; a transparent
+          click-catcher closes it, and it's a single block: one header, one
+          scrollable list, nothing else on the page scrolls while it's open. */}
       <AnimatePresence>
         {activeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-24 sm:items-center sm:pt-4">
+            <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-2xl bg-card dark:bg-card-dark border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden"
+              className="relative flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-gray-200 bg-card dark:border-gray-800 dark:bg-card-dark shadow-2xl"
+              style={{ maxHeight: 'min(28rem, 80vh)' }}
             >
-              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+              <div className="flex shrink-0 items-center justify-between border-b border-gray-100 dark:border-gray-800 px-6 py-4">
                 <h3 className="font-bold text-text dark:text-text-dark capitalize">
                   {activeModal} ({activeModal === 'followers' ? profile?.followersCount ?? 0 : profile?.followingCount ?? 0})
                 </h3>
@@ -1036,16 +1185,58 @@ export default function ProfilePage() {
                 </button>
               </div>
 
-              <div className="max-h-80 overflow-y-auto p-4">
-                {(activeModal === 'followers' && (profile?.followersCount ?? 0) === 0) || (activeModal === 'following' && (profile?.followingCount ?? 0) === 0) ? (
+              {/* This is the only scrollable region in the panel. */}
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {isLoadingFollowList ? (
+                  <div className="space-y-3">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+                    ))}
+                  </div>
+                ) : followListError ? (
                   <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-center text-sm text-textSecondary dark:text-textSecondary-dark">
-                    {activeModal === 'followers' ? 'No followers available right now.' : 'No following available right now.'}
+                    {followListError}
+                  </div>
+                ) : isDemoMode ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-center text-sm text-textSecondary dark:text-textSecondary-dark">
+                    {activeModal === 'followers' ? 'Followers' : 'Following'} aren't available in demo mode.
+                  </div>
+                ) : followListEntries.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-center text-sm text-textSecondary dark:text-textSecondary-dark">
+                    {activeModal === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-center text-sm text-textSecondary dark:text-textSecondary-dark">
-                      {activeModal === 'followers' ? 'Followers will appear here once they are available.' : 'People you follow will appear here once they are available.'}
-                    </div>
+                  <div className="space-y-1">
+                    {followListEntries.map((entry) => (
+                      <div
+                        key={entry.userId}
+                        className="flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+                      >
+                        <Avatar name={entry.name} src={resolveMediaUrl(entry.profilePicture ?? undefined)} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-text dark:text-text-dark">{entry.name}</p>
+                          <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">@{entry.username}</p>
+                        </div>
+                        {isOwnProfile && activeModal === 'followers' && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFollower(entry)}
+                            className="shrink-0 rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-xs font-semibold text-textSecondary dark:text-textSecondary-dark transition-colors hover:border-error hover:text-error"
+                          >
+                            Remove
+                          </button>
+                        )}
+                        {isOwnProfile && activeModal === 'following' && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFollowing(entry)}
+                            className="shrink-0 rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-xs font-semibold text-textSecondary dark:text-textSecondary-dark transition-colors hover:border-error hover:text-error"
+                          >
+                            Unfollow
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

@@ -47,6 +47,84 @@ async function isFollowing(followerId, followingId) {
 }
 
 // ---------------------------------------------------------------------------
+// Richer version of getRelationship for UI display purposes (profile header
+// label + follow button state). Deliberately separate from getRelationship
+// (which stays self/friend/stranger, unchanged, since visibility.js keys off
+// that exact shape) so nothing about post/quote visibility changes here.
+//
+// Returns one of:
+//   'self'              - viewing your own profile
+//   'mutual'             - both users follow each other
+//   'following'          - viewer follows target, target doesn't follow back
+//   'follower'           - target follows viewer, viewer doesn't follow back
+//   'stranger'           - neither follows the other
+// ---------------------------------------------------------------------------
+async function getFollowStatus(viewerId, targetUserId) {
+  if (!viewerId) return { status: 'stranger', viewerFollowsTarget: false, targetFollowsViewer: false };
+  if (viewerId === targetUserId) return { status: 'self', viewerFollowsTarget: false, targetFollowsViewer: false };
+
+  const { rows } = await pool.query(
+    `SELECT
+       EXISTS (SELECT 1 FROM followers WHERE follower_id = $1 AND following_id = $2) AS viewer_follows_target,
+       EXISTS (SELECT 1 FROM followers WHERE follower_id = $2 AND following_id = $1) AS target_follows_viewer`,
+    [viewerId, targetUserId]
+  );
+  const viewerFollowsTarget = rows[0].viewer_follows_target;
+  const targetFollowsViewer = rows[0].target_follows_viewer;
+
+  let status = 'stranger';
+  if (viewerFollowsTarget && targetFollowsViewer) status = 'mutual';
+  else if (viewerFollowsTarget) status = 'following';
+  else if (targetFollowsViewer) status = 'follower';
+
+  return { status, viewerFollowsTarget, targetFollowsViewer };
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/users/:username/followers - people who follow userId.
+// Each row also reports whether the viewer follows that person back, so the
+// frontend can render a per-row Follow/Following button in the list.
+// ---------------------------------------------------------------------------
+async function listFollowers(userId, { limit = 20, offset = 0, viewerId = null } = {}) {
+  const { rows } = await pool.query(
+    `SELECT
+       u.user_id, u.name, u.username, u.profile_picture,
+       f.created_at AS followed_at,
+       EXISTS (
+         SELECT 1 FROM followers vf WHERE vf.follower_id = $3 AND vf.following_id = u.user_id
+       ) AS viewer_follows_this_user
+     FROM followers f
+     JOIN users u ON u.user_id = f.follower_id
+     WHERE f.following_id = $1
+     ORDER BY f.created_at DESC
+     LIMIT $2 OFFSET $4`,
+    [userId, limit, viewerId, offset]
+  );
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/users/:username/following - people userId follows.
+// ---------------------------------------------------------------------------
+async function listFollowing(userId, { limit = 20, offset = 0, viewerId = null } = {}) {
+  const { rows } = await pool.query(
+    `SELECT
+       u.user_id, u.name, u.username, u.profile_picture,
+       f.created_at AS followed_at,
+       EXISTS (
+         SELECT 1 FROM followers vf WHERE vf.follower_id = $3 AND vf.following_id = u.user_id
+       ) AS viewer_follows_this_user
+     FROM followers f
+     JOIN users u ON u.user_id = f.following_id
+     WHERE f.follower_id = $1
+     ORDER BY f.created_at DESC
+     LIMIT $2 OFFSET $4`,
+    [userId, limit, viewerId, offset]
+  );
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/users/:username/follow
 // ON CONFLICT DO NOTHING makes this idempotent - following someone you
 // already follow just no-ops instead of erroring.
@@ -78,7 +156,10 @@ module.exports = {
   countFollowing,
   areFriends,
   getRelationship,
+  getFollowStatus,
   isFollowing,
+  listFollowers,
+  listFollowing,
   follow,
   unfollow,
 };

@@ -29,6 +29,13 @@ async function getProfile(req, res, next) {
     const relationship = await followerModel.getRelationship(req.user?.userId, targetUser.user_id);
     const isOwnProfile = relationship === 'self';
 
+    // Separate from `relationship` above (which stays self/friend/stranger
+    // because utils/visibility.js keys off exactly that shape). This gives
+    // the frontend enough detail to show a one-sided relationship instead of
+    // lumping "they follow me but I don't follow them" in with "stranger",
+    // and to know whether the Follow button should read "Following".
+    const followStatus = await followerModel.getFollowStatus(req.user?.userId, targetUser.user_id);
+
     const [followersCount, followingCount, reviewsCount] = await Promise.all([
       followerModel.countFollowers(targetUser.user_id),
       followerModel.countFollowing(targetUser.user_id),
@@ -45,7 +52,10 @@ async function getProfile(req, res, next) {
     return res.json({
       user: profile,
       isOwnProfile,
-      relationship, // 'self' | 'friend' | 'stranger'
+      relationship, // 'self' | 'friend' | 'stranger' - visibility tiers only, don't repurpose
+      followState: followStatus.status, // 'self' | 'mutual' | 'following' | 'follower' | 'stranger'
+      viewerFollowsTarget: followStatus.viewerFollowsTarget,
+      targetFollowsViewer: followStatus.targetFollowsViewer,
       followersCount,
       followingCount,
       reviewsCount,
@@ -160,6 +170,7 @@ async function getReviews(req, res, next) {
           bookId: r.book_id,
           title: r.book_title,
           author: r.book_author,
+          coverImage: r.book_cover_image,
           // Average across all reviews for this book, not this reviewer's own rating above.
           rating: r.book_rating !== undefined ? Number(r.book_rating) : undefined,
           noOfRatings: r.book_no_of_ratings,

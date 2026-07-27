@@ -20,6 +20,7 @@ async function findByUserPaginated(userId, { limit = 3, offset = 0 } = {}) {
         r.book_id,
         b.title AS book_title,
         b.author AS book_author,
+        b.cover_image AS book_cover_image,
         b.rating AS book_rating,
         b.no_of_ratings AS book_no_of_ratings
      FROM reviews r
@@ -58,6 +59,7 @@ async function findById(reviewId) {
         r.book_id,
         b.title AS book_title,
         b.author AS book_author,
+        b.cover_image AS book_cover_image,
         b.rating AS book_rating,
         b.no_of_ratings AS book_no_of_ratings
      FROM reviews r

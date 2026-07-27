@@ -1,10 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
 import { StarRating } from '../ui/StarRating';
+import apiClient from '../../lib/api';
 import type { CreateEntryPayload, PostVisibility } from '../../types/feed';
+
+interface BookSuggestion {
+  bookId: number;
+  title: string;
+  author: string;
+  coverImage?: string | null;
+}
 
 interface NewEntryModalProps {
   isOpen?: boolean;
@@ -71,6 +79,16 @@ export function NewEntryModal({
   const [visibility, setVisibility] = useState<PostVisibility>(initialVisibility);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Book title autocomplete - suggestions come from the same backend lookup
+  // used at compose-time for posts/reviews/quotes (GET /books/lookup).
+  const [bookSuggestions, setBookSuggestions] = useState<BookSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingBooks, setIsSearchingBooks] = useState(false);
+  const [selectedBookId, setSelectedBookId] = useState<string | undefined>(undefined);
+  // Set right before we programmatically fill the title from a selection, so
+  // the very next title-change effect run doesn't re-open the dropdown.
+  const justSelectedRef = useRef(false);
+
   useEffect(() => {
     if (!isOpen) return;
     setIsReview(initialMode === 'review');
@@ -79,7 +97,70 @@ export function NewEntryModal({
     setContent(initialContent);
     setVisibility(initialVisibility);
     setRating(initialRating);
+    setSelectedBookId(undefined);
+    setBookSuggestions([]);
+    setShowSuggestions(false);
   }, [isOpen, initialMode, initialBookTitle, initialBookAuthor, initialContent, initialVisibility, initialRating]);
+
+  // Debounced search-as-you-type for the book title field. Only runs while
+  // composing a review (posts don't attach a book here).
+  useEffect(() => {
+    if (!isOpen || !isReview) return;
+
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false;
+      return;
+    }
+
+    const query = bookTitle.trim();
+    if (query.length < 2) {
+      setBookSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    let isCurrent = true;
+    setIsSearchingBooks(true);
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await apiClient.get<{ books: BookSuggestion[] }>('/books/lookup', {
+          params: { title: query, limit: 6 },
+        });
+        if (!isCurrent) return;
+        setBookSuggestions(response.data.books);
+        setShowSuggestions(true);
+      } catch {
+        if (!isCurrent) return;
+        // Lookup is a nice-to-have - if it fails (offline, backend down),
+        // just fall back to the plain manual title+author entry.
+        setBookSuggestions([]);
+        setShowSuggestions(false);
+      } finally {
+        if (isCurrent) setIsSearchingBooks(false);
+      }
+    }, 300);
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timeoutId);
+    };
+  }, [bookTitle, isReview, isOpen]);
+
+  const handleSelectSuggestion = (suggestion: BookSuggestion) => {
+    justSelectedRef.current = true;
+    setBookTitle(suggestion.title);
+    setBookAuthor(suggestion.author);
+    setSelectedBookId(String(suggestion.bookId));
+    setBookSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  const handleBookTitleChange = (value: string) => {
+    // Any manual edit invalidates a previously-selected suggestion - we're
+    // back to "this might be a new/unlisted book" until they pick again.
+    setSelectedBookId(undefined);
+    setBookTitle(value);
+  };
 
   if (!isOpen) return null;
 
@@ -96,6 +177,7 @@ export function NewEntryModal({
         isReview,
         bookTitle: bookTitle.trim(),
         bookAuthor: bookAuthor.trim(),
+        bookId: isReview ? selectedBookId : undefined,
         rating,
         content: content.trim(),
         visibility: isReview ? 'public' : visibility,
@@ -169,17 +251,60 @@ export function NewEntryModal({
 
           {isReview ? (
             <>
-              <Input
-                label="Book title"
-                placeholder="e.g. Fourth Wing"
-                value={bookTitle}
-                onChange={(event) => setBookTitle(event.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  label="Book title"
+                  placeholder="e.g. Fourth Wing"
+                  value={bookTitle}
+                  autoComplete="off"
+                  onChange={(event) => handleBookTitleChange(event.target.value)}
+                  onFocus={() => {
+                    if (bookSuggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  onBlur={() => {
+                    // Small delay so a click on a suggestion registers before the list unmounts.
+                    setTimeout(() => setShowSuggestions(false), 150);
+                  }}
+                  rightElement={
+                    isSearchingBooks ? (
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-primary" />
+                    ) : selectedBookId ? (
+                      <span className="text-xs font-semibold text-primary" title="Matched an existing book">
+                        ✓
+                      </span>
+                    ) : undefined
+                  }
+                />
+                {showSuggestions && bookSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {bookSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.bookId}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handleSelectSuggestion(suggestion)}
+                        className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition-colors duration-100 hover:bg-primary/5"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium text-text dark:text-text-dark">{suggestion.title}</span>
+                          <span className="block truncate text-xs text-textSecondary dark:text-textSecondary-dark">{suggestion.author}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <Input
                 label="Author"
                 placeholder="e.g. Rebecca Yarros"
                 value={bookAuthor}
-                onChange={(event) => setBookAuthor(event.target.value)}
+                onChange={(event) => {
+                  // Editing the author after picking a suggestion means this
+                  // is no longer necessarily that exact catalog book.
+                  setSelectedBookId(undefined);
+                  setBookAuthor(event.target.value);
+                }}
+                hint={selectedBookId ? undefined : "Not in our catalog yet? It'll be added when you publish."}
               />
               <div className="min-h-[120px] rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
                 <p className="text-sm font-semibold text-text dark:text-text-dark">Star rating</p>

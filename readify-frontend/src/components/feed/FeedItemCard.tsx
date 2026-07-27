@@ -185,16 +185,21 @@ export function FeedItemCard({
                             {totalComments}
                         </button>
 
-                        <motion.button
-                            type="button"
-                            onClick={() => onToggleBookmark(item.id)}
-                            whileTap={{ scale: 1.25 }}
-                            aria-label="Bookmark"
-                            className={`ml-auto transition-colors duration-150 ${item.bookmarkedByMe ? 'text-primary' : 'hover:text-primary'
-                                }`}
-                        >
-                            <BookmarkIcon filled={item.bookmarkedByMe} className="h-5 w-5" />
-                        </motion.button>
+                        {/* Saving = adding the reviewed book to the wishlist, so it
+                            only makes sense - and only shows - on reviews, never on
+                            plain posts. */}
+                        {item.type === 'review' && (
+                            <motion.button
+                                type="button"
+                                onClick={() => onToggleBookmark(item.id)}
+                                whileTap={{ scale: 1.25 }}
+                                aria-label="Save to wishlist"
+                                className={`ml-auto transition-colors duration-150 ${item.bookmarkedByMe ? 'text-primary' : 'hover:text-primary'
+                                    }`}
+                            >
+                                <BookmarkIcon filled={item.bookmarkedByMe} className="h-5 w-5" />
+                            </motion.button>
+                        )}
                     </div>
 
                     {showComments && (
