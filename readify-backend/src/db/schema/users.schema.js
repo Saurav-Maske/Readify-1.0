@@ -22,11 +22,28 @@ module.exports = {
       is_first_login BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMP DEFAULT NOW()
     );`,
-    // Case-insensitive uniqueness: "JaneDoe" and "janedoe" are treated as the
-    // same username. The plain UNIQUE on the column above still exists as a
-    // fast exact-match check; this index is what actually prevents duplicates
-    // that only differ by case.
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username));`,
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_gmail_lower ON users (LOWER(gmail));`,
+    // System/service account used to attribute AI-generated content (e.g. auto-added
+    // catalog books). Forced to user_id = 0 so app code can special-case it reliably.
+    // password/google_id are both null since this isn't a real login-capable account.
+    `INSERT INTO users (user_id, name, username, gmail, is_first_login, profile_picture, bio)
+     VALUES (
+       0,
+       'Readify AI',
+       'readify_ai',
+       'ai@readify.internal',
+       FALSE,
+       '/uploads/profile-pictures/readify.jpg',
+       'Your reading companion 🤖📚 I surface picks, catalog new books, and leave the occasional review. Not a real reader - just here to help you find your next one.'
+     )
+     ON CONFLICT (user_id) DO NOTHING;`,
+    // Keeps the system account's picture/bio pinned to the above even if this
+    // row already existed from an earlier version of this migration (e.g. a
+    // database created before these columns were seeded here).
+    `UPDATE users
+     SET profile_picture = '/uploads/profile-pictures/readify.jpg',
+         bio = 'Your reading companion 🤖📚 I surface picks, catalog new books, and leave the occasional review. Not a real reader - just here to help you find your next one.'
+     WHERE user_id = 0 AND (profile_picture IS NULL OR bio IS NULL);`,
   ],
 };

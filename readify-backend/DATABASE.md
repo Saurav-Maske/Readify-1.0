@@ -53,6 +53,15 @@ touching the rest of the app.
 | is_first_login | boolean, defaults `true`. Flipped to `false` the first time the user completes any login-type flow (`verify-otp`, `login`, `google`, `google/complete-signup`). Never flipped by `GET /me` — checking your own profile isn't a login. |
 | created_at | |
 
+**Seeded system account:** `users.schema.js` inserts a fixed row at
+`user_id = 0` ("Readify AI" / `readify_ai`) on every server start
+(`ON CONFLICT (user_id) DO NOTHING`, so it's created once and left alone
+after that — except its `profile_picture`/`bio` are re-synced on every
+start if either was ever null). It has no `password`/`google_id` (not a
+real login-capable account) and is used to attribute AI-generated content
+such as auto-added catalog books. App code special-cases `userId === 0`
+(e.g. `ProfilePage` only shows a Reviews tab, no Posts tab, for this user).
+
 ### `temp_users` (wiped on every restart — holding pen for unfinished signups/resets)
 | column | used by |
 |---|---|
@@ -85,8 +94,13 @@ support password reset.
 **Unknown books:** when a user reviews a book that isn't in your catalog,
 a bare-bones row is created here (`source = 'user_submitted'`, just title +
 author, no cover/genre/rating) instead of allowing a null `book_id`
-anywhere else in the schema. `reviews.book_id` stays `NOT NULL` and points
-at a real `book_id` either way — the recommendation model just filters or
+anywhere else in the schema. `reviews.book_id` is only *required in
+practice* — `POST /api/reviews` rejects a request that has neither
+`bookId` nor `title`+`author` before it ever reaches the database — the
+column itself has no `NOT NULL` constraint at the DB level (unlike
+`posts.visibility`, which is `NOT NULL` in the schema). Either way, every
+review that does get created points at a real `book_id`, so the
+recommendation model just filters or
 down-weights by `source` instead of every query having to special-case
 missing books. When the book is later matched to real catalog data, you
 just `UPDATE books SET source = 'catalog', ... WHERE book_id = X` — nothing

@@ -44,8 +44,9 @@ export const MOCK_FEED_ITEMS: FeedItem[] = [
       title: 'Tomorrow, and Tomorrow, and Tomorrow',
       author: 'Gabrielle Zevin',
       coverColor: '#EF4444',
-      rating: 5,
+      rating: 4.6,
     },
+    userRating: 5,
     content:
       "A rare novel about creativity that is itself creative. The dual-timeline structure mirrors the emotional beats of the story perfectly, and the last act genuinely caught me off guard. Easily one of the best things I've read this year.",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
@@ -68,8 +69,9 @@ export const MOCK_FEED_ITEMS: FeedItem[] = [
       title: 'Demon Copperhead',
       author: 'Barbara Kingsolver',
       coverColor: '#F59E0B',
-      rating: 5,
+      rating: 4.8,
     },
+    userRating: 5,
     content:
       "Kingsolver's command of voice is remarkable — it never once slips out of character. A hard read in places, but the kind of book that changes how you see an entire region and the people in it. Required reading, honestly.",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),

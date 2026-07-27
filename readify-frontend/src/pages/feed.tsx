@@ -136,7 +136,7 @@ export default function Feed() {
     };
 
     const newItem: FeedItem = payload.isReview
-      ? { ...base, type: 'review', book }
+      ? { ...base, type: 'review', book, userRating: payload.rating }
       : { ...base, type: 'post' };
 
     setItems((current) => [newItem, ...current]);

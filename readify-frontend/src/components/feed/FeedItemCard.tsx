@@ -151,24 +151,10 @@ export function FeedItemCard({
                             {item.type === 'review' && (
                                 <div className="mt-3 rounded-xl bg-white/70 p-3 dark:bg-gray-900/50">
                                     <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-textSecondary dark:text-textSecondary-dark">Your rating</p>
-                                            <p className="mt-1 text-sm font-medium text-text dark:text-text-dark">Tap the stars to rate this book</p>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                <button
-                                                    key={star}
-                                                    type="button"
-                                                    className={`h-5 w-5 rounded-full transition-colors duration-150 ${star <= item.book.rating ? 'text-amber-400' : 'text-gray-300 dark:text-gray-500'}`}
-                                                    aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
-                                                >
-                                                    <svg viewBox="0 0 24 24" className="h-full w-full fill-current" aria-hidden="true">
-                                                        <path d="M12 2.75l2.9 5.9 6.5.95-4.7 4.58 1.1 6.47-5.8-3.05-5.8 3.05 1.1-6.47-4.7-4.58 6.5-.95L12 2.75z" />
-                                                    </svg>
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-textSecondary dark:text-textSecondary-dark">Rating</p>
+                                        {/* Read-only: this is the rating the reviewer gave the book, not
+                                            something the viewer (even the reviewer themselves) can edit here. */}
+                                        <StarRating value={item.userRating} size="md" />
                                     </div>
                                 </div>
                             )}

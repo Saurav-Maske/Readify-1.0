@@ -326,7 +326,10 @@ larger `limit` and `offset=3` to load the rest.
 ### `GET /users/:username/reviews?limit=3&offset=0`
 Paginated, always public — no relationship check applied. Same response
 shape as `posts` above, with `reviewId`, `rating`, `review` instead of
-`postId`/`caption`, and no `visibility` or `likeCount` fields.
+`postId`/`caption`, and no `visibility` or `likeCount` fields. `book` also
+carries `rating` (the book's average across all its reviews) and
+`noOfRatings` — don't confuse this with the top-level `rating`, which is
+this specific reviewer's own score.
 
 ### `PATCH /users/me` 🔒 *protected, multipart/form-data*
 Update your own bio and/or profile picture. Only fields actually sent are changed.
@@ -368,6 +371,79 @@ Unfollow the given user. Also idempotent.
 
 ---
 
+## My Shelf
+
+Three independent lists per user — `currently-reading` (at most one book,
+`current_reading.user_id` is unique), `want-to-read` (`wishlist`), and
+`finished` (`reading_history`, `finished_at` set). All four routes are
+`🔒 protected` and always scoped to the logged-in user (`req.user`) —
+there's no `:username` version of these.
+
+### `GET /users/me/shelf`
+**Response**
+```json
+{
+  "currently-reading": [
+    { "bookId": 3, "title": "Dune", "author": "Frank Herbert", "coverImage": "...", "startedAt": "..." }
+  ],
+  "want-to-read": [
+    { "bookId": 7, "title": "...", "author": "...", "coverImage": "...", "savedAt": "..." }
+  ],
+  "finished": [
+    { "bookId": 1, "title": "...", "author": "...", "coverImage": "...", "startedAt": "...", "finishedAt": "..." }
+  ]
+}
+```
+
+---
+
+### `POST /users/me/shelf`
+```json
+{ "status": "want-to-read", "bookId": 3 }
+```
+Or, for a book not yet in the system, `title`/`author` instead of `bookId`
+(same find-or-create behavior as `POST /reviews` — see `/books/lookup`
+flow above). Optional `genre`, `publishedDate`, `coverImage` are only used
+when a new book is actually created this way.
+
+- `status` — one of `currently-reading` | `want-to-read` | `finished`, required.
+- `bookId`, or `title` + `author`, required.
+
+Adding a book that's already `currently-reading` replaces whatever book was
+there before (only one at a time per user) rather than erroring. Adding a
+book already on the shelf for the same status is otherwise idempotent
+(`want-to-read` uses `ON CONFLICT DO NOTHING`).
+
+**Response** — `201`
+```json
+{ "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert", "coverImage": "..." }, "status": "want-to-read" }
+```
+**Errors:** `400` invalid/missing `status`, missing book info, or `bookId` not an integer · `404` book not found
+
+---
+
+### `PATCH /users/me/shelf/:bookId/finish`
+Moves a book from `currently-reading` to `finished`. If it wasn't already
+in `currently-reading`, it's still added straight to `finished` — both
+`startedAt` and `finishedAt` are then "now".
+
+**Response**
+```json
+{ "finished": { "bookId": 3, "startedAt": "...", "finishedAt": "..." } }
+```
+**Errors:** `400` bookId not an integer
+
+---
+
+### `DELETE /users/me/shelf/:status/:bookId`
+Removes a book from the given shelf tab. `status` selects which table
+(`currently-reading` / `want-to-read` / `finished`) to delete from.
+
+**Response** — `204 No Content`
+**Errors:** `400` invalid `status` or bookId not an integer · `404` not on that shelf
+
+---
+
 ## Books
 
 ### `GET /books/:bookId`
@@ -389,8 +465,8 @@ Fetch a single book's info (catalog or user-submitted).
 ---
 
 ### `GET /books/lookup?title=dune&limit=8`
-> Not the general book/user discovery search (that's a separate feature,
-> coming later). This is the narrow, compose-time lookup used by the
+> Not the general book/user discovery search — see `GET /search` below for
+> that. This is the narrow, compose-time lookup used by the
 > review creation screen — see below, `posts` and `quotes` don't take a
 > book at all anymore.
 
@@ -417,6 +493,47 @@ on title or author, catalog books ranked first.
 }
 ```
 **Errors:** `400` missing `title` query param
+
+---
+
+## Search
+
+### `GET /search?q=...&limit=20`
+The general discovery search behind the frontend's search bar. One query
+param, two possible result shapes — decided purely by whether `q` starts
+with `@`:
+
+| `q` | searches | matches on |
+|---|---|---|
+| starts with `@` (e.g. `@jane`) | people | `users.username` / `users.name`, ILIKE, `@` stripped before querying |
+| anything else (e.g. `dune`) | books | `books.title` / `books.author`, ILIKE — same matcher as `/books/lookup` |
+
+Works logged-out (`optionalAuth`) — a user search only gets `isSelf`/
+`isFollowing` filled in when a valid token is sent; without one, every
+result has `isSelf: false, isFollowing: false`.
+
+**Response — user search (`q=@jane`)**
+```json
+{
+  "mode": "users",
+  "query": "@jane",
+  "results": [
+    { "userId": 1, "name": "Jane Doe", "username": "janedoe", "profilePicture": null, "bio": "...", "isSelf": false, "isFollowing": true }
+  ]
+}
+```
+
+**Response — book search (`q=dune`)**
+```json
+{
+  "mode": "books",
+  "query": "dune",
+  "results": [
+    { "bookId": 3, "title": "Dune", "author": "Frank Herbert", "genre": "Sci-Fi", "publishedDate": "1965-08-01", "coverImage": "https://...", "rating": 4.6, "noOfRatings": 128, "source": "catalog" }
+  ]
+}
+```
+**Errors:** `400` missing/empty `q` query param
 
 ---
 
@@ -487,23 +604,32 @@ Reviews are the only endpoint that still works with books this way —
 - `rating` — number, `0`–`5`, required.
 - `review` — text, required.
 
+Creating (or deleting) a review recalculates the book's stored average
+rating (`books.rating`) and rating count (`books.no_of_ratings`) from all
+of its reviews, so the book's average is always kept in sync.
+
 **Response** — `201`
 ```json
 {
   "review": {
     "reviewId": 12, "rating": 4.5,
     "review": "Loved the world-building, pacing dragged in the middle.",
-    "createdAt": "...", "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert" }
+    "createdAt": "...",
+    "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert", "rating": 4.2, "noOfRatings": 131 }
   }
 }
 ```
+`review.rating` is this reviewer's own score; `review.book.rating` is the
+book's average across all reviews (updated to include this one).
+
 **Errors:** `400` invalid rating/review, or missing book info · `404` book not found
 
 ---
 
 ### `DELETE /reviews/:reviewId` 🔒 *protected*
 Deletes your own review. Same ownership-enforced-server-side behavior as
-`DELETE /posts/:postId`.
+`DELETE /posts/:postId`. The book's average rating and rating count are
+recalculated afterward.
 
 **Response** — `204 No Content`
 **Errors:** `400` reviewId not an integer · `404` not found / not yours

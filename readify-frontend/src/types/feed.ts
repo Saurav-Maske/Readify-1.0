@@ -11,6 +11,7 @@ export interface ReviewedBook {
   author: string;
   coverUrl?: string;
   coverColor?: string;
+  /** The book's average rating across all reviews (from the books table), not any one reviewer's rating. */
   rating: number;
 }
 
@@ -29,6 +30,8 @@ export interface FeedReview {
   type: 'review';
   author: FeedAuthor;
   book: ReviewedBook;
+  /** The rating this specific reviewer gave the book (not the book's average). */
+  userRating: number;
   content: string;
   createdAt: string;
   isAiPick?: boolean;

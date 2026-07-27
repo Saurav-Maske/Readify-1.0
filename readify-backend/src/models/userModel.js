@@ -51,6 +51,23 @@ async function updatePasswordByGmail(gmail, hashedPassword) {
   return rows[0] || null;
 }
 
+// ---------------------------------------------------------------------------
+// Backs GET /api/search?q=@... - the "@" prefix means the caller wants
+// people, not books (see searchController.search). Matches on username OR
+// display name, exact username hits ranked first, then alphabetically.
+// ---------------------------------------------------------------------------
+async function search(query, { limit = 20 } = {}) {
+  const { rows } = await pool.query(
+    `SELECT *
+     FROM users
+     WHERE username ILIKE $1 OR name ILIKE $1
+     ORDER BY (LOWER(username) = LOWER($2)) DESC, username ASC
+     LIMIT $3`,
+    [`%${query}%`, query, limit]
+  );
+  return rows;
+}
+
 async function updateProfile(userId, { bio, profilePicture }) {
   // Use COALESCE so that only the fields actually provided are changed.
   // If bio is undefined/null the existing bio is kept, same for profilePicture.
@@ -75,6 +92,7 @@ module.exports = {
   findByUsername,
   findByGoogleId,
   findById,
+  search,
   createUser,
   linkGoogleId,
   updatePasswordByGmail,

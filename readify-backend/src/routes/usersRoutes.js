@@ -4,6 +4,7 @@ const onboardingController = require('../controllers/onboardingController');
 
 const profileController = require('../controllers/profileController');
 const followController = require('../controllers/followController');
+const shelfController = require('../controllers/shelfController');
 const optionalAuth = require('../middleware/optionalAuth');
 const requireAuth = require('../middleware/authMiddleware');
 const uploadProfilePicture = require('../middleware/uploadProfilePicture');
@@ -15,6 +16,13 @@ router.patch(
   uploadProfilePicture.single('profilePicture'),
   profileController.updateMyProfile
 );
+
+// My Shelf (currently reading / want to read / finished) - all scoped to the
+// logged-in user, also placed above /:username so they're never shadowed.
+router.get('/me/shelf', requireAuth, shelfController.getShelf);
+router.post('/me/shelf', requireAuth, shelfController.addToShelf);
+router.patch('/me/shelf/:bookId/finish', requireAuth, shelfController.finishBook);
+router.delete('/me/shelf/:status/:bookId', requireAuth, shelfController.removeFromShelf);
 
 // All three work for logged-out visitors (public profile pages), but behave
 // differently if the visitor happens to be logged in as the profile owner.

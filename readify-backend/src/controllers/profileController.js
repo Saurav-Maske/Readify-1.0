@@ -156,7 +156,14 @@ async function getReviews(req, res, next) {
         rating: Number(r.rating),
         review: r.review,
         createdAt: r.created_at,
-        book: { bookId: r.book_id, title: r.book_title, author: r.book_author },
+        book: {
+          bookId: r.book_id,
+          title: r.book_title,
+          author: r.book_author,
+          // Average across all reviews for this book, not this reviewer's own rating above.
+          rating: r.book_rating !== undefined ? Number(r.book_rating) : undefined,
+          noOfRatings: r.book_no_of_ratings,
+        },
       })),
       limit,
       offset,

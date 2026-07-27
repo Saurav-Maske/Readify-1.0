@@ -10,6 +10,7 @@ import QuestionsPage from './pages/QuestionsPage';
 import Feed from './pages/feed';
 import BookPage from './pages/BookPage';
 import ProfilePage from './pages/ProfilePage';
+import SearchPage from './pages/searchPage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import MyShelfPage from './pages/MyShelf';
 
@@ -30,6 +31,7 @@ export default function App() {
         {/* Authenticated Dashboard Routes */}
         <Route path="/feed" element={<DashboardLayout><Feed /></DashboardLayout>} />
         <Route path="/books" element={<DashboardLayout><BookPage /></DashboardLayout>} />
+        <Route path="/search" element={<DashboardLayout><SearchPage /></DashboardLayout>} />
         <Route path="/profile" element={<DashboardLayout><ProfilePage /></DashboardLayout>} />
         <Route path="/profile/:username" element={<DashboardLayout><ProfilePage /></DashboardLayout>} />
         <Route path="/shelf" element={<MyShelfPage />} />

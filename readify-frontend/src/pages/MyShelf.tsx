@@ -1,27 +1,62 @@
 import { useEffect, useState, type FormEvent } from "react";
+import toast from "react-hot-toast";
+import { isAxiosError } from "axios";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import { StarRating } from "../components/ui/StarRating";
 import { Plus, X, CheckCircle2, Trash2 } from "lucide-react";
 import { NewEntryModal } from "../components/feed/NewEntryModal";
 import type { CreateEntryPayload } from "../types/feed";
+import apiClient from "../lib/api";
 
 interface ShelfBook {
-  id: string;
+  bookId: number;
   title: string;
   author: string;
   coverUrl: string;
-  rating: number;
   status: ShelfTab;
-  reviewPrompted?: boolean;
 }
 
 type ShelfTab = "currently-reading" | "want-to-read" | "finished";
+
+interface BackendShelfBook {
+  bookId: number;
+  title: string;
+  author: string;
+  coverImage: string | null;
+}
+
+interface BackendShelfResponse {
+  "currently-reading": BackendShelfBook[];
+  "want-to-read": BackendShelfBook[];
+  finished: BackendShelfBook[];
+}
 
 const TABS: { key: ShelfTab; label: string }[] = [
   { key: "currently-reading", label: "Currently Reading" },
   { key: "want-to-read", label: "Wishlist" },
   { key: "finished", label: "Finished" },
 ];
+
+function toShelfBook(book: BackendShelfBook, status: ShelfTab): ShelfBook {
+  return {
+    bookId: book.bookId,
+    title: book.title,
+    author: book.author,
+    coverUrl: book.coverImage ?? "",
+    status,
+  };
+}
+
+/**
+ * True when a request failed because the backend couldn't be reached at all
+ * (connection refused, DNS failure, timeout, CORS, etc) - as opposed to a
+ * real server response like a 401/500.
+ */
+function isBackendUnreachable(error: unknown): boolean {
+  if (isAxiosError(error)) {
+    return !error.response;
+  }
+  return false;
+}
 
 export default function MyShelfPage() {
   const [activeTab, setActiveTab] = useState<ShelfTab>("currently-reading");
@@ -31,88 +66,41 @@ export default function MyShelfPage() {
     finished: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
   const [newStatus, setNewStatus] = useState<ShelfTab>("want-to-read");
-  const [newRating, setNewRating] = useState(5);
+  const [isAddingBook, setIsAddingBook] = useState(false);
   const [isFinishPromptOpen, setIsFinishPromptOpen] = useState(false);
   const [bookToFinish, setBookToFinish] = useState<ShelfBook | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [composerMode, setComposerMode] = useState<'post' | 'review'>('review');
   const [composerPrefill, setComposerPrefill] = useState<{ title: string; author: string } | null>(null);
 
-  useEffect(() => {
-    // ============================================================
-    // BACKEND INTEGRATION: Fetch shelf stats & books on mount
-    // ============================================================
-    // const loadShelf = async () => {
-    //   setIsLoading(true);
-    //   try {
-    //     const [statsRes, booksRes] = await Promise.all([
-    //       api.get("/users/me/shelf/stats"), // Returns ShelfStats
-    //       api.get("/users/me/shelf/books"), // Returns Record<ShelfTab, ShelfBook[]>
-    //     ]);
-    //     setStats(statsRes.data);
-    //     setBooksByTab(booksRes.data);
-    //   } catch (err) {
-    //     console.error("Failed to load bookshelf data", err);
-    //   } finally {
-    //     setIsLoading(false);
-    //   }
-    // };
-    // loadShelf();
-    // ============================================================
+  const loadShelf = async () => {
+    setIsLoading(true);
+    setLoadError("");
+    try {
+      const response = await apiClient.get<BackendShelfResponse>("/users/me/shelf");
+      setBooksByTab({
+        "currently-reading": response.data["currently-reading"].map((b) => toShelfBook(b, "currently-reading")),
+        "want-to-read": response.data["want-to-read"].map((b) => toShelfBook(b, "want-to-read")),
+        finished: response.data.finished.map((b) => toShelfBook(b, "finished")),
+      });
+    } catch (error) {
+      if (isBackendUnreachable(error)) {
+        setLoadError("Backend isn't reachable right now. Please try again shortly.");
+      } else {
+        setLoadError("Unable to load your bookshelf. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    setBooksByTab({
-      "currently-reading": [
-        {
-          id: "1",
-          title: "Tomorrow, and Tomorrow, and Tomorrow",
-          author: "Gabrielle Zevin",
-          coverUrl: "",
-          rating: 5,
-          status: "currently-reading",
-        },
-        {
-          id: "2",
-          title: "The Atlas Six",
-          author: "Olivie Blake",
-          coverUrl: "",
-          rating: 5,
-          status: "currently-reading",
-        },
-      ],
-      "want-to-read": [
-        {
-          id: "4",
-          title: "Atomic Habits",
-          author: "James Clear",
-          coverUrl: "",
-          rating: 0,
-          status: "want-to-read",
-        },
-        {
-          id: "5",
-          title: "Project Hail Mary",
-          author: "Andy Weir",
-          coverUrl: "",
-          rating: 0,
-          status: "want-to-read",
-        },
-      ],
-      finished: [
-        {
-          id: "6",
-          title: "Dune",
-          author: "Frank Herbert",
-          coverUrl: "",
-          rating: 5,
-          status: "finished",
-        },
-      ],
-    });
-    setIsLoading(false);
+  useEffect(() => {
+    void loadShelf();
   }, []);
 
   const activeBooks = booksByTab[activeTab] ?? [];
@@ -120,67 +108,95 @@ export default function MyShelfPage() {
   // Handle Add Book Submission
   const handleAddBookSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newAuthor.trim()) return;
+    if (!newTitle.trim() || !newAuthor.trim() || isAddingBook) return;
 
-    const newBookItem: ShelfBook = {
-      id: Date.now().toString(),
-      title: newTitle,
-      author: newAuthor,
-      coverUrl: "",
-      rating: newRating,
-      status: newStatus,
-    };
+    setIsAddingBook(true);
+    try {
+      const response = await apiClient.post<{ book: BackendShelfBook; status: ShelfTab }>("/users/me/shelf", {
+        status: newStatus,
+        title: newTitle.trim(),
+        author: newAuthor.trim(),
+      });
 
-    // ============================================================
-    // BACKEND INTEGRATION: POST new book
-    // ============================================================
-    // try {
-    //   const response = await api.post("/users/me/shelf/books", {
-    //     title: newTitle,
-    //     author: newAuthor,
-    //     status: newStatus,
-    //     rating: newRating,
-    //     progress: newBookItem.progress,
-    //   });
-    //   // Use server response ID if available
-    //   newBookItem.id = response.data.id;
-    // } catch (err) {
-    //   console.error("Failed to add book", err);
-    //   return;
-    // }
-    // ============================================================
+      const newBookItem = toShelfBook(response.data.book, newStatus);
+      setBooksByTab((prev) => ({
+        ...prev,
+        // Adding a new "currently reading" book replaces whatever was there before,
+        // matching the backend's one-current-book-per-user rule.
+        [newStatus]:
+          newStatus === "currently-reading"
+            ? [newBookItem]
+            : [newBookItem, ...prev[newStatus].filter((book) => book.bookId !== newBookItem.bookId)],
+      }));
 
-    // Update local state
-    setBooksByTab((prev) => ({
-      ...prev,
-      [newStatus]: [newBookItem, ...prev[newStatus]],
-    }));
-
-    // Reset Form & Close Modal
-    setNewTitle("");
-    setNewAuthor("");
-    setNewRating(5);
-    setIsModalOpen(false);
+      setNewTitle("");
+      setNewAuthor("");
+      setIsModalOpen(false);
+      toast.success("Book added to your shelf!");
+    } catch {
+      toast.error("Unable to add this book. Please try again.");
+    } finally {
+      setIsAddingBook(false);
+    }
   };
 
-  const handleMoveToFinished = (bookId: string) => {
-    const bookToMove = booksByTab["currently-reading"].find((book) => book.id === bookId);
+  const handleMoveToFinished = async (bookId: number) => {
+    const bookToMove = booksByTab["currently-reading"].find((book) => book.bookId === bookId);
     if (!bookToMove) return;
 
-    setBooksByTab((prev) => ({
-      ...prev,
-      "currently-reading": prev["currently-reading"].filter((book) => book.id !== bookId),
-      finished: [{ ...bookToMove, rating: 5, status: "finished" }, ...prev.finished],
-    }));
+    try {
+      await apiClient.patch(`/users/me/shelf/${bookId}/finish`);
 
-    setBookToFinish(bookToMove);
-    setIsFinishPromptOpen(true);
+      setBooksByTab((prev) => ({
+        ...prev,
+        "currently-reading": prev["currently-reading"].filter((book) => book.bookId !== bookId),
+        finished: [{ ...bookToMove, status: "finished" }, ...prev.finished],
+      }));
+
+      setBookToFinish(bookToMove);
+      setIsFinishPromptOpen(true);
+    } catch {
+      toast.error("Unable to update this book. Please try again.");
+    }
+  };
+
+  const handleRemoveFromWishlist = async (bookId: number) => {
+    try {
+      await apiClient.delete(`/users/me/shelf/want-to-read/${bookId}`);
+      setBooksByTab((prev) => ({
+        ...prev,
+        "want-to-read": prev["want-to-read"].filter((item) => item.bookId !== bookId),
+      }));
+    } catch {
+      toast.error("Unable to remove this book. Please try again.");
+    }
   };
 
   const handleCreateEntry = async (payload: CreateEntryPayload) => {
     if (!payload.content.trim()) return;
-    setIsComposerOpen(false);
-    setComposerPrefill(null);
+
+    try {
+      if (payload.isReview) {
+        await apiClient.post("/reviews", {
+          rating: payload.rating,
+          review: payload.content,
+          title: payload.bookTitle,
+          author: payload.bookAuthor,
+        });
+        toast.success("Review published!");
+      } else {
+        await apiClient.post("/posts", {
+          caption: payload.content,
+          visibility: payload.visibility === "only_me" ? "JUST_ME" : payload.visibility.toUpperCase(),
+        });
+        toast.success("Posted!");
+      }
+    } catch {
+      toast.error("Unable to publish. Please try again.");
+    } finally {
+      setIsComposerOpen(false);
+      setComposerPrefill(null);
+    }
   };
 
   return (
@@ -225,6 +241,10 @@ export default function MyShelfPage() {
               <div key={i} className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 h-[140px] animate-pulse" />
             ))}
           </div>
+        ) : loadError ? (
+          <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-12 text-center text-sm text-error shadow-sm">
+            {loadError}
+          </div>
         ) : activeBooks.length === 0 ? (
           <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-12 text-center text-gray-400 dark:text-gray-500 shadow-sm">
             No books here yet. Use "Add Book" to start filling this shelf.
@@ -232,7 +252,7 @@ export default function MyShelfPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {activeBooks.map((book) => (
-              <div key={book.id} className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-4 flex gap-4 shadow-sm">
+              <div key={book.bookId} className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-4 flex gap-4 shadow-sm">
                 <div className="w-14 h-20 rounded-md bg-gray-100 dark:bg-gray-800 overflow-hidden shrink-0 flex items-center justify-center text-gray-300 dark:text-gray-600 text-xs">
                   {book.coverUrl ? (
                     <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
@@ -243,14 +263,11 @@ export default function MyShelfPage() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-text dark:text-text-dark text-sm leading-snug line-clamp-2">{book.title}</h3>
                   <p className="text-xs text-textSecondary dark:text-textSecondary-dark mt-0.5">{book.author}</p>
-                  <div className="mt-1">
-                    <StarRating {...({ rating: book.rating, readOnly: true, size: "sm" } as any)} />
-                  </div>
 
                   {activeTab === "currently-reading" && (
                     <button
                       type="button"
-                      onClick={() => handleMoveToFinished(book.id)}
+                      onClick={() => handleMoveToFinished(book.bookId)}
                       className="mt-3 inline-flex items-center gap-2 rounded-full border border-indigo-200 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950"
                     >
                       <CheckCircle2 size={14} />
@@ -261,12 +278,7 @@ export default function MyShelfPage() {
                   {activeTab === "want-to-read" && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setBooksByTab((prev) => ({
-                          ...prev,
-                          "want-to-read": prev["want-to-read"].filter((item) => item.id !== book.id),
-                        }))
-                      }
+                      onClick={() => handleRemoveFromWishlist(book.bookId)}
                       className="mt-3 inline-flex items-center gap-2 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30"
                     >
                       <Trash2 size={14} />
@@ -346,9 +358,10 @@ export default function MyShelfPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm"
+                    disabled={isAddingBook}
+                    className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Save Book
+                    {isAddingBook ? "Saving..." : "Save Book"}
                   </button>
                 </div>
               </form>

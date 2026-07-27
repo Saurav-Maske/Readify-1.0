@@ -68,4 +68,25 @@ async function resolveBook({ bookId, title, author, genre, publishedDate, coverI
   return create({ title, author, genre, publishedDate, coverImage, addedBy });
 }
 
-module.exports = { findById, search, findByTitleAndAuthor, create, resolveBook };
+// ---------------------------------------------------------------------------
+// Recomputes books.rating (average) and books.no_of_ratings from the reviews
+// table for a single book. Called after any review is created or deleted so
+// the stored average never drifts from the underlying reviews.
+// Recomputing from scratch (rather than incrementally adjusting a running
+// average) keeps this correct even if reviews are ever edited/bulk-deleted,
+// and it's a single atomic statement so there's no read-then-write race.
+// Safe to call for a book with zero reviews left - rating resets to 0.
+// ---------------------------------------------------------------------------
+async function recalculateRating(bookId) {
+  const { rows } = await pool.query(
+    `UPDATE books
+     SET rating = COALESCE((SELECT ROUND(AVG(rating)::numeric, 1) FROM reviews WHERE book_id = $1), 0),
+         no_of_ratings = (SELECT COUNT(*)::int FROM reviews WHERE book_id = $1)
+     WHERE book_id = $1
+     RETURNING rating, no_of_ratings`,
+    [bookId]
+  );
+  return rows[0] || null;
+}
+
+module.exports = { findById, search, findByTitleAndAuthor, create, resolveBook, recalculateRating };

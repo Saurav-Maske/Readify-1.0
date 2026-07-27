@@ -58,6 +58,9 @@ async function createReview(req, res, next) {
       review: review.trim(),
     });
 
+    // Keep the book's stored average in sync with the reviews that back it.
+    await bookModel.recalculateRating(book.book_id);
+
     const fullReview = await reviewModel.findById(created.review_id);
 
     return res.status(201).json({ review: formatReview(fullReview) });
@@ -83,6 +86,9 @@ async function deleteReview(req, res, next) {
       return res.status(404).json({ error: 'Review not found' });
     }
 
+    // Keep the book's stored average in sync now that this review is gone.
+    await bookModel.recalculateRating(deleted.book_id);
+
     return res.status(204).send();
   } catch (err) {
     next(err);
@@ -95,7 +101,14 @@ function formatReview(r) {
     rating: Number(r.rating),
     review: r.review,
     createdAt: r.created_at,
-    book: { bookId: r.book_id, title: r.book_title, author: r.book_author },
+    book: {
+      bookId: r.book_id,
+      title: r.book_title,
+      author: r.book_author,
+      // Average across all reviews for this book, not this reviewer's own rating above.
+      rating: r.book_rating !== undefined ? Number(r.book_rating) : undefined,
+      noOfRatings: r.book_no_of_ratings,
+    },
   };
 }
 

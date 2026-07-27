@@ -19,7 +19,9 @@ async function findByUserPaginated(userId, { limit = 3, offset = 0 } = {}) {
         r.created_at,
         r.book_id,
         b.title AS book_title,
-        b.author AS book_author
+        b.author AS book_author,
+        b.rating AS book_rating,
+        b.no_of_ratings AS book_no_of_ratings
      FROM reviews r
      JOIN books b ON b.book_id = r.book_id
      WHERE r.user_id = $1
@@ -55,7 +57,9 @@ async function findById(reviewId) {
         r.created_at,
         r.book_id,
         b.title AS book_title,
-        b.author AS book_author
+        b.author AS book_author,
+        b.rating AS book_rating,
+        b.no_of_ratings AS book_no_of_ratings
      FROM reviews r
      JOIN books b ON b.book_id = r.book_id
      WHERE r.review_id = $1`,
@@ -70,7 +74,7 @@ async function findById(reviewId) {
 // ---------------------------------------------------------------------------
 async function deleteById(reviewId, userId) {
   const { rows } = await pool.query(
-    `DELETE FROM reviews WHERE review_id = $1 AND user_id = $2 RETURNING review_id`,
+    `DELETE FROM reviews WHERE review_id = $1 AND user_id = $2 RETURNING review_id, book_id`,
     [reviewId, userId]
   );
   return rows[0] || null;

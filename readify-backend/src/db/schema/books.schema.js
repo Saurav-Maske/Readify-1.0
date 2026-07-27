@@ -5,8 +5,8 @@ module.exports = {
     `CREATE TABLE IF NOT EXISTS books (
       book_id SERIAL PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
-      author VARCHAR(255) NOT NULL,
-      genre VARCHAR(100),
+      author TEXT NOT NULL,
+      genre TEXT,
       published_date DATE,
       cover_image TEXT,
       rating NUMERIC(2,1) DEFAULT 0,
