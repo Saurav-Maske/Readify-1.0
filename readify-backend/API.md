@@ -464,6 +464,32 @@ Fetch a single book's info (catalog or user-submitted).
 
 ---
 
+### `GET /books/:bookId/reviews?limit=10&offset=0`
+Community reviews for this book — always public, newest first. Used by the
+book detail page. Not the same as `GET /users/:username/reviews`, which
+goes the other way (one user's reviews across every book).
+
+**Response**
+```json
+{
+  "reviews": [
+    {
+      "reviewId": 12, "rating": 4.5,
+      "review": "Loved the world-building, pacing dragged in the middle.",
+      "createdAt": "...",
+      "reviewer": { "userId": 7, "name": "Jane Doe", "username": "janedoe", "profilePicture": "/uploads/profile-pictures/..." }
+    }
+  ],
+  "limit": 10, "offset": 0, "hasMore": false
+}
+```
+`reviewer.profilePicture` is a relative path (or `null`); prefix it with the
+API origin the same way `users.profilePicture` is handled elsewhere.
+
+**Errors:** `400` bookId not an integer
+
+---
+
 ### `GET /books/lookup?title=dune&limit=8`
 > Not the general book/user discovery search — see `GET /search` below for
 > that. This is the narrow, compose-time lookup used by the

@@ -80,4 +80,32 @@ async function deleteById(reviewId, userId) {
   return rows[0] || null;
 }
 
-module.exports = { countByUser, findByUserPaginated, create, findById, deleteById };
+// ---------------------------------------------------------------------------
+// GET /api/books/:bookId/reviews
+// Community reviews for a single book (always public), newest first, with
+// the reviewer's own display info attached - separate from
+// findByUserPaginated, which goes the other way (one user's reviews across
+// every book, for the profile page).
+// ---------------------------------------------------------------------------
+async function findByBookPaginated(bookId, { limit = 10, offset = 0 } = {}) {
+  const { rows } = await pool.query(
+    `SELECT
+        r.review_id,
+        r.rating,
+        r.review,
+        r.created_at,
+        u.user_id AS reviewer_id,
+        u.name AS reviewer_name,
+        u.username AS reviewer_username,
+        u.profile_picture AS reviewer_avatar
+     FROM reviews r
+     JOIN users u ON u.user_id = r.user_id
+     WHERE r.book_id = $1
+     ORDER BY r.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [bookId, limit, offset]
+  );
+  return rows;
+}
+
+module.exports = { countByUser, findByUserPaginated, findByBookPaginated, create, findById, deleteById };

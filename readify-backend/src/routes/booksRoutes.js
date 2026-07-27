@@ -8,6 +8,7 @@ const bookController = require('../controllers/bookController');
 // general books/users discovery search lives at GET /api/search instead
 // (see searchRoutes.js / searchController.js), to avoid the two colliding.
 router.get('/lookup', bookController.lookupBooks);
+router.get('/:bookId/reviews', bookController.getBookReviews);
 router.get('/:bookId', bookController.getBook);
 
 module.exports = router;

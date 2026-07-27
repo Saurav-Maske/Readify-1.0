@@ -1,4 +1,5 @@
 const bookModel = require('../models/bookModel');
+const reviewModel = require('../models/reviewModel');
 
 // ---------------------------------------------------------------------------
 // GET /api/books/:bookId
@@ -50,6 +51,45 @@ async function lookupBooks(req, res, next) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/books/:bookId/reviews?limit=10&offset=0
+// Public - reviews have no visibility tiers, same reasoning as
+// profileController.getReviews.
+// ---------------------------------------------------------------------------
+async function getBookReviews(req, res, next) {
+  try {
+    const bookId = Number(req.params.bookId);
+    if (!Number.isInteger(bookId)) {
+      return res.status(400).json({ error: 'bookId must be an integer' });
+    }
+
+    const limit = Math.min(Number(req.query.limit) || 10, 50);
+    const offset = Number(req.query.offset) || 0;
+
+    const reviews = await reviewModel.findByBookPaginated(bookId, { limit, offset });
+
+    return res.json({
+      reviews: reviews.map((r) => ({
+        reviewId: r.review_id,
+        rating: Number(r.rating),
+        review: r.review,
+        createdAt: r.created_at,
+        reviewer: {
+          userId: r.reviewer_id,
+          name: r.reviewer_name,
+          username: r.reviewer_username,
+          profilePicture: r.reviewer_avatar,
+        },
+      })),
+      limit,
+      offset,
+      hasMore: reviews.length === limit,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 function formatBook(b) {
   return {
     bookId: b.book_id,
@@ -64,4 +104,4 @@ function formatBook(b) {
   };
 }
 
-module.exports = { getBook, lookupBooks };
+module.exports = { getBook, lookupBooks, getBookReviews };
