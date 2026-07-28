@@ -18,6 +18,10 @@ Each folder has its own README/docs with full setup details:
 - [`readify-backend`](./readify-backend) — see also [API.md](./readify-backend/API.md) and [DATABASE.md](./readify-backend/DATABASE.md)
 - [`readify-ai`](./readify-ai/README.md)
 
+## Report
+
+Full project report (methodology, architecture, evaluation): [Readify_Report.pdf](./docs/Readify_Report.pdf)
+
 ## Tech Stack
 
 - **Frontend:** React, TypeScript, Vite
