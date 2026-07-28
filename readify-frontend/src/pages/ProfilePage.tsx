@@ -1276,7 +1276,7 @@ export default function ProfilePage() {
                   No quotes available right now.
                 </div>
               ) : (
-                <ul className="max-h-[320px] space-y-3 overflow-y-auto pr-1 text-sm text-text dark:text-text-dark">
+                <ul className="max-h-[320px] space-y-3 overflow-y-auto pr-1 text-sm text-text dark:text-text-dark scrollbar-hide">
                   {quotes.map((quote) => (
                     <li
                       key={quote.id}

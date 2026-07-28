@@ -84,7 +84,7 @@ export interface SuggestedReader {
   name: string;
   username: string;
   avatarUrl?: string;
-  bookCount: number;
+  reviewCount: number;
   isFollowing: boolean;
 }
 

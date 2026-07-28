@@ -7,8 +7,10 @@ import { DropdownMenu } from '../ui/DropdownMenu';
 import { CommentSection } from './CommentSection';
 import {
     BookmarkIcon,
+    BookOpenIcon,
     CommentIcon,
     EyeOffIcon,
+    GlobeIcon,
     HeartIcon,
     LockIcon,
     MoreHorizontalIcon,
@@ -16,7 +18,6 @@ import {
     TrashIcon,
 } from '../icons';
 import { formatRelativeTime } from '../../lib/formatRelativeTime';
-import { countComments } from '../../lib/commentUtils';
 import type { FeedItem } from '../../types/feed';
 
 interface FeedItemCardProps {
@@ -46,7 +47,12 @@ export function FeedItemCard({
     canDelete = true,
 }: FeedItemCardProps) {
     const [showComments, setShowComments] = useState(false);
-    const totalComments = countComments(item.comments);
+    // item.commentCount comes straight from the feed/profile list endpoints
+    // and is always accurate. item.comments (the actual thread) is only
+    // populated lazily once this card's comment section is opened - using
+    // countComments(item.comments) here instead would show 0 until the user
+    // clicked the icon, since the thread hasn't been fetched yet at that point.
+    const totalComments = item.commentCount;
     const isOwnPost = currentUserId ? currentUserId === item.author.id : false;
 
     return (
@@ -76,17 +82,35 @@ export function FeedItemCard({
                                     AI Pick
                                 </span>
                             )}
-                            {item.visibility === 'private' && (
-                                <span className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-textSecondary dark:text-textSecondary-dark">
-                                    <LockIcon className="h-3 w-3" />
-                                    Private
+                            {/* Reviews have no visibility tiers of their own (always public), so
+                                they get a single REVIEW tag instead of a visibility badge. Posts
+                                show their actual visibility - Public/Private/Only me - explicitly. */}
+                            {item.type === 'review' ? (
+                                <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                                    <BookOpenIcon className="h-3 w-3" />
+                                    Review
                                 </span>
-                            )}
-                            {item.visibility === 'only_me' && (
-                                <span className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-textSecondary dark:text-textSecondary-dark">
-                                    <EyeOffIcon className="h-3 w-3" />
-                                    Only me
-                                </span>
+                            ) : (
+                                <>
+                                    {item.visibility === 'public' && (
+                                        <span className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-textSecondary dark:text-textSecondary-dark">
+                                            <GlobeIcon className="h-3 w-3" />
+                                            Public
+                                        </span>
+                                    )}
+                                    {item.visibility === 'private' && (
+                                        <span className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-textSecondary dark:text-textSecondary-dark">
+                                            <LockIcon className="h-3 w-3" />
+                                            Private
+                                        </span>
+                                    )}
+                                    {item.visibility === 'only_me' && (
+                                        <span className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-textSecondary dark:text-textSecondary-dark">
+                                            <EyeOffIcon className="h-3 w-3" />
+                                            Only me
+                                        </span>
+                                    )}
+                                </>
                             )}
                         </div>
                         <div className="flex shrink-0 items-center gap-2">

@@ -72,6 +72,40 @@ That race is closed at the database level: `users.username` and
 indexes (see `src/db/schema/`), so the second insert fails and the controller
 turns that into a clean `409 Username is already taken` instead of a crash.
 
+## Feed
+
+`GET /api/feed`, `/api/feed/quotes`, `/api/feed/trending-books`, and
+`/api/feed/connections` are all handled in `src/controllers/feedController.js`
+(queries live in `src/models/feedModel.js`). All four are protected — every
+one of them ranks or filters relative to the logged-in viewer, so there's no
+generic/logged-out version of any of them.
+
+- **`GET /feed`** — merges posts and reviews from everyone except the viewer
+  (respecting the same PUBLIC/PRIVATE/JUST_ME visibility rule used on
+  profiles) and ranks the combined list with a weighted blend: cosine
+  similarity between the viewer's taste vector and the reviewed book (posts
+  have no book, so similarity contributes 0 for them), recency decay,
+  recent-likes engagement, a boost if the viewer follows the author, a boost
+  scaled by the author's follower count, and a flat boost for `readify_ai`
+  (user_id 0). Supports `limit`/`offset` paging and returns `hasMore`.
+- **`GET /feed/quotes`** — quotes posted in the last 24 hours by the
+  viewer's friends (mutual follows) only; nothing from one-sided follows or
+  strangers, however recent.
+- **`GET /feed/trending-books`** — books with review/like activity in the
+  last 7 days, ranked by a blend of that recent activity and cosine
+  similarity to the viewer's taste vector, so it's popularity-this-week
+  re-weighted toward what this particular viewer is likely to care about
+  rather than one global list for everyone.
+- **`GET /feed/connections`** ("readers to follow") — users the viewer
+  doesn't already follow, ranked purely by cosine similarity between the
+  viewer's and each candidate's taste vector; `readify_ai` is excluded since
+  it's a system account, not a person to follow.
+
+The taste-vector building (`buildUserVector`/`buildBookVector`) lives in
+`src/models/tasteModel.js`, and cosine similarity itself is in
+`src/utils/similartiy.js`. Full request/response shapes are in
+[API.md](./API.md#feed).
+
 ## More docs
 
 - [API.md](./API.md) — full endpoint reference for frontend integration

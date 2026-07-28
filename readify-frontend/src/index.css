@@ -39,3 +39,12 @@
   }
 }
 
+/* Keeps an element scrollable (e.g. via overflow-y-auto) without showing
+   a visible scrollbar - used for the feed page's right sidebar. */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, newer Edge */
+}

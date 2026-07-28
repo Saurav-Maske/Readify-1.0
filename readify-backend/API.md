@@ -697,3 +697,95 @@ Deletes your own quote. Same ownership-enforced-server-side behavior as
 
 **Response** — `204 No Content`
 **Errors:** `400` quoteId not an integer · `404` not found / not yours
+
+---
+
+## Feed
+
+All feed endpoints are protected — they rank/filter relative to the logged-
+in viewer, so there is no logged-out feed.
+
+### GET /feed?limit=20\&offset=0 🔒 *protected*
+Merged, ranked posts + reviews from everyone except the viewer. Visibility
+follows the same rule as GET /users/:username/posts (PUBLIC always,
+PRIVATE only from friends/mutual-follows, JUST_ME never shown to anyone
+else) — reviews have no visibility tiers, so every review is eligible.
+
+Ranking blends cosine similarity (viewer taste vector vs. the reviewed
+book — posts have no book, so similarity contributes 0 for posts), recency
+decay, recent-likes engagement, a boost for authors the viewer
+follows/friends, a boost scaled by the author's follower count, and a flat
+boost for readify_ai (user_id = 0). See src/controllers/feedController.js
+for the exact weights.
+
+**Response**
+json
+{
+  "items": [
+    {
+      "type": "post",
+      "postId": 41, "caption": "...", "visibility": "PUBLIC", "createdAt": "...",
+      "likeCount": 3, "likedByMe": false, "commentCount": 1,
+      "author": { "userId": 7, "name": "Jane Doe", "username": "janedoe", "profilePicture": null },
+      "book": null
+    },
+    {
+      "type": "review",
+      "reviewId": 12, "rating": 4.5, "review": "...", "createdAt": "...",
+      "likeCount": 9, "likedByMe": true, "commentCount": 2,
+      "author": { "userId": 3, "name": "Alex Kim", "username": "alexk", "profilePicture": null },
+      "book": { "bookId": 3, "title": "Dune", "author": "Frank Herbert", "coverImage": null, "rating": 4.2, "noOfRatings": 131 }
+    }
+  ],
+  "limit": 20, "offset": 0, "hasMore": true
+}
+
+---
+
+### GET /feed/quotes 🔒 *protected*
+Quotes posted in the last 24 hours by friends (mutual follows) of the
+viewer only — a quote from anyone else, however recent, is excluded.
+
+**Response**
+json
+{
+  "quotes": [
+    {
+      "quoteId": 55, "quote": "Fear is the mind-killer.", "createdAt": "...",
+      "likeCount": 2, "likedByMe": false,
+      "author": { "userId": 9, "name": "Maya Chen", "username": "maya.reads", "profilePicture": null }
+    }
+  ]
+}
+
+---
+
+### GET /feed/trending-books?limit=10 🔒 *protected*
+Books with review/like activity in the last 7 days, ranked by a blend of
+that activity and cosine similarity to the viewer's taste vector — so
+"trending" is popularity-this-week re-weighted toward what this particular
+viewer is likely to care about, not a single global list.
+
+**Response**
+json
+{
+  "books": [
+    { "rank": 1, "bookId": 3, "title": "Dune", "author": "Frank Herbert", "genre": "Sci-Fi", "coverImage": null, "rating": 4.2, "noOfRatings": 131 }
+  ]
+}
+
+---
+
+### GET /feed/connections?limit=5 🔒 *protected*
+"Readers to follow" — users the viewer doesn't already follow, ranked by
+cosine similarity between the viewer's and each candidate's taste vector.
+Excludes readify_ai (user_id = 0) — it's a system account, not a person
+to follow. `reviewCount` is the candidate's total number of reviews.
+
+**Response**
+json
+{
+  "readers": [
+    { "userId": 14, "name": "Dev Sharma", "username": "devreads", "profilePicture": null, "reviewCount": 22 }
+  ]
+}

@@ -118,7 +118,7 @@ export const MOCK_TRENDING_BOOKS: TrendingBook[] = [
 ];
 
 export const MOCK_SUGGESTED_READERS: SuggestedReader[] = [
-  { id: 'u1', name: 'Marcus Osei', username: 'marcusreads', bookCount: 467, isFollowing: false },
-  { id: 'u4', name: 'Yuna Park', username: 'yunap', bookCount: 189, isFollowing: false },
-  { id: 'u2', name: 'Dev Sharma', username: 'devreads', bookCount: 523, isFollowing: false },
+  { id: 'u1', name: 'Marcus Osei', username: 'marcusreads', reviewCount: 24, isFollowing: false },
+  { id: 'u4', name: 'Yuna Park', username: 'yunap', reviewCount: 11, isFollowing: false },
+  { id: 'u2', name: 'Dev Sharma', username: 'devreads', reviewCount: 37, isFollowing: false },
 ];

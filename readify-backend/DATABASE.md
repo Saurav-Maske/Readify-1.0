@@ -215,12 +215,12 @@ This is necessary because Postgres treats every `NULL` as distinct in a
 "like" the same quote or review unlimited times, since `post_id` is `NULL`
 on all of those rows.
 
-> No `likeController`/routes exist yet for any target — this table is
-> schema-only for now.
+`likeController` + routes exist for all three targets (post/quote/review) —
+see `POST|DELETE /api/posts/:postId/like`, `/api/quotes/:quoteId/like`, and
+`/api/reviews/:reviewId/like`.
 
-**Quote likes expire after 24 hours; post likes don't.** See "Background
-jobs" below — only the `likes` row is deleted, never the `quotes` row, so
-liked quotes can resurface later as a "memories" feature.
+Quote likes no longer expire — the earlier 24-hour expiry background job has
+been removed, so a liked quote behaves like any other like.
 
 ### `comments` (permanent) — supports replies
 | column | notes |
@@ -271,20 +271,30 @@ skipped the optional fields).
 
 ---
 
-## Background jobs
+## Feed, trending books & connections
 
-### Quote-like expiry
-`src/jobs/cleanupQuoteLikes.js`, started from `server.js` right after
-`initDb()`. Runs once immediately, then every hour for as long as the
-process is alive:
-```sql
-DELETE FROM likes
-WHERE quote_id IS NOT NULL
-  AND created_at < NOW() - INTERVAL '24 hours';
-```
-Only `likes` rows are removed — `quotes` themselves are never touched, so a
-liked quote can be resurfaced later (e.g. "this quote you liked a year
-ago") even after the like itself has expired.
+`src/models/tasteModel.js` builds cosine-similarity taste vectors (genre +
+author terms, TF-weighted, rating-weighted for reviews) for users and books.
+`src/models/feedModel.js` pulls bounded candidate pools (posts, reviews,
+friend quotes, trending-book activity, connection candidates) and
+`src/controllers/feedController.js` scores/ranks them:
+
+- `GET /api/feed` — posts + reviews from everyone except the viewer,
+  respecting the same PUBLIC/PRIVATE/JUST_ME visibility rule as
+  `profileController`, ranked by a blend of cosine similarity, recency
+  decay, recent-likes engagement, a friend/following boost, author
+  follower-count influence, and a `readify_ai` (user_id 0) boost.
+- `GET /api/feed/quotes` — quotes from the last 24 hours posted by friends
+  (mutual follows only).
+- `GET /api/feed/trending-books` — books with review/like activity in the
+  last 7 days, re-weighted by similarity to the viewer's taste.
+- `GET /api/feed/connections` — "readers to follow", ranked by cosine
+  similarity between the viewer's and each candidate's taste vector.
+
+v1 note: vectors are computed live per request rather than precomputed/
+cached, and similarity uses raw TF weighting rather than full TF-IDF against
+the book corpus. Both are flagged as the natural next steps if this needs to
+scale further — see the comments atop `tasteModel.js`.
 
 ---
 

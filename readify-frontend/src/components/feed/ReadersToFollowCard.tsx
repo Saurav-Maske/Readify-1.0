@@ -6,15 +6,28 @@ import type { SuggestedReader } from '../../types/feed';
 
 interface ReadersToFollowCardProps {
   readers: SuggestedReader[];
+  /** Called after the optimistic UI update. Throw/reject to roll the toggle back. */
+  onToggleFollow?: (reader: SuggestedReader) => Promise<void> | void;
 }
 
-export function ReadersToFollowCard({ readers: initialReaders }: ReadersToFollowCardProps) {
+export function ReadersToFollowCard({ readers: initialReaders, onToggleFollow }: ReadersToFollowCardProps) {
   const [readers, setReaders] = useState(initialReaders);
 
-  const toggleFollow = (id: string) => {
+  const toggleFollow = async (id: string) => {
+    const target = readers.find((reader) => reader.id === id);
+    if (!target) return;
+
     setReaders((current) =>
       current.map((reader) => (reader.id === id ? { ...reader, isFollowing: !reader.isFollowing } : reader))
     );
+
+    try {
+      await onToggleFollow?.(target);
+    } catch {
+      setReaders((current) =>
+        current.map((reader) => (reader.id === id ? { ...reader, isFollowing: target.isFollowing } : reader))
+      );
+    }
   };
 
   return (
@@ -27,11 +40,11 @@ export function ReadersToFollowCard({ readers: initialReaders }: ReadersToFollow
       <ul className="space-y-3">
         {readers.map((reader) => (
           <li key={reader.id} className="flex items-center gap-3">
-            <Link to={`/users?id=${reader.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+            <Link to={`/profile/${reader.username}`} className="flex min-w-0 flex-1 items-center gap-3">
               <Avatar name={reader.name} src={reader.avatarUrl} size="sm" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-text dark:text-text-dark hover:underline">{reader.name}</p>
-                <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">{reader.bookCount} books</p>
+                <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">{reader.reviewCount} reviews</p>
               </div>
             </Link>
             <button
