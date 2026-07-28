@@ -11,6 +11,7 @@ Readify/
 ├── readify-frontend/   # React + TypeScript + Vite client
 ├── readify-backend/    # Node.js + Express API, PostgreSQL
 └── readify-ai/         # Python recommendation engine (Discover page)
+└── docs/               # report folder
 ```
 
 Each folder has its own README/docs with full setup details:
