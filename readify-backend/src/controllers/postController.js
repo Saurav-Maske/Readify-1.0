@@ -68,7 +68,9 @@ function formatPost(p) {
     caption: p.caption,
     visibility: p.visibility,
     createdAt: p.created_at,
-    likeCount: p.like_count,
+    likeCount: p.like_count ?? 0,
+    likedByMe: p.liked_by_me ?? false,
+    commentCount: p.comment_count ?? 0,
   };
 }
 

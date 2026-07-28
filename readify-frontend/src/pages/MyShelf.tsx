@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { isAxiosError } from "axios";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { Plus, X, CheckCircle2, Trash2 } from "lucide-react";
 import { NewEntryModal } from "../components/feed/NewEntryModal";
@@ -59,6 +60,8 @@ function isBackendUnreachable(error: unknown): boolean {
 }
 
 export default function MyShelfPage() {
+  const navigate = useNavigate();
+  const goToBook = (bookId: number) => navigate(`/books?id=${bookId}`);
   const [activeTab, setActiveTab] = useState<ShelfTab>("currently-reading");
   const [booksByTab, setBooksByTab] = useState<Record<ShelfTab, ShelfBook[]>>({
     "currently-reading": [],
@@ -252,7 +255,19 @@ export default function MyShelfPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {activeBooks.map((book) => (
-              <div key={book.bookId} className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-4 flex gap-4 shadow-sm">
+              <div
+                key={book.bookId}
+                onClick={() => goToBook(book.bookId)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    goToBook(book.bookId);
+                  }
+                }}
+                className="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-4 flex gap-4 shadow-sm cursor-pointer transition-colors hover:border-indigo-200 dark:hover:border-indigo-800"
+              >
                 <div className="w-14 h-20 rounded-md bg-gray-100 dark:bg-gray-800 overflow-hidden shrink-0 flex items-center justify-center text-gray-300 dark:text-gray-600 text-xs">
                   {book.coverUrl ? (
                     <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
@@ -267,7 +282,10 @@ export default function MyShelfPage() {
                   {activeTab === "currently-reading" && (
                     <button
                       type="button"
-                      onClick={() => handleMoveToFinished(book.bookId)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveToFinished(book.bookId);
+                      }}
                       className="mt-3 inline-flex items-center gap-2 rounded-full border border-indigo-200 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950"
                     >
                       <CheckCircle2 size={14} />
@@ -278,7 +296,10 @@ export default function MyShelfPage() {
                   {activeTab === "want-to-read" && (
                     <button
                       type="button"
-                      onClick={() => handleRemoveFromWishlist(book.bookId)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromWishlist(book.bookId);
+                      }}
                       className="mt-3 inline-flex items-center gap-2 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30"
                     >
                       <Trash2 size={14} />

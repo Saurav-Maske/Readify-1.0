@@ -8,6 +8,7 @@ import { NewEntryModal } from '../components/feed/NewEntryModal';
 import { PlusIcon } from '../components/icons';
 import { Avatar } from '../components/ui/Avatar';
 import type { CreateEntryPayload, FeedComment, FeedItem } from '../types/feed';
+import { addCommentToTree } from '../lib/commentUtils';
 import apiClient from '../lib/api';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ?? 'http://localhost:4000';
@@ -57,6 +58,8 @@ interface BackendPost {
   visibility: 'PUBLIC' | 'PRIVATE' | 'JUST_ME';
   createdAt: string;
   likeCount: number;
+  likedByMe?: boolean;
+  commentCount?: number;
   book: { bookId: number; title: string; author: string } | null;
 }
 
@@ -65,6 +68,9 @@ interface BackendReview {
   rating: number;
   review: string;
   createdAt: string;
+  likeCount?: number;
+  likedByMe?: boolean;
+  commentCount?: number;
   book: { bookId: number; title: string; author: string; coverImage?: string | null; rating?: number };
 }
 
@@ -72,6 +78,8 @@ interface BackendQuote {
   quoteId: number;
   quote: string;
   createdAt?: string;
+  likeCount?: number;
+  likedByMe?: boolean;
 }
 
 interface ProfileQuote {
@@ -79,6 +87,49 @@ interface ProfileQuote {
   quote: string;
   likedByMe: boolean;
   likeCount: number;
+}
+
+interface BackendComment {
+  commentId: number;
+  parentCommentId: number | null;
+  comment: string;
+  createdAt: string;
+  author: { userId: number; name: string; username: string; profilePicture: string | null };
+}
+
+// Turns the flat, oldest-first list the backend returns into the nested
+// reply tree FeedItemCard/CommentSection expect, using parentCommentId.
+function buildCommentTree(flat: BackendComment[]): FeedComment[] {
+  const byId = new Map<string, FeedComment>();
+  const parentOf = new Map<string, string | null>();
+
+  flat.forEach((c) => {
+    byId.set(String(c.commentId), {
+      id: String(c.commentId),
+      author: {
+        id: String(c.author.userId),
+        name: c.author.name,
+        username: c.author.username,
+        avatarUrl: resolveMediaUrl(c.author.profilePicture),
+      },
+      content: c.comment,
+      createdAt: c.createdAt,
+      replies: [],
+    });
+    parentOf.set(String(c.commentId), c.parentCommentId ? String(c.parentCommentId) : null);
+  });
+
+  const roots: FeedComment[] = [];
+  byId.forEach((node, id) => {
+    const parentId = parentOf.get(id);
+    const parent = parentId ? byId.get(parentId) : undefined;
+    if (parent) {
+      parent.replies.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+  return roots;
 }
 
 function toFeedItem(post: BackendPost, profile: BackendUser): FeedItem {
@@ -98,9 +149,9 @@ function toFeedItem(post: BackendPost, profile: BackendUser): FeedItem {
     createdAt: post.createdAt,
     visibility: post.visibility === 'JUST_ME' ? 'only_me' : (post.visibility.toLowerCase() as 'public' | 'private'),
     likeCount: post.likeCount,
-    commentCount: 0,
+    commentCount: post.commentCount ?? 0,
     repostCount: 0,
-    likedByMe: false,
+    likedByMe: post.likedByMe ?? false,
     bookmarkedByMe: false,
     repostedByMe: false,
     comments: [],
@@ -129,10 +180,10 @@ function toReviewFeedItem(review: BackendReview, profile: BackendUser): FeedItem
     content: review.review,
     createdAt: review.createdAt,
     visibility: 'public',
-    likeCount: 0,
-    commentCount: 0,
+    likeCount: review.likeCount ?? 0,
+    commentCount: review.commentCount ?? 0,
     repostCount: 0,
-    likedByMe: false,
+    likedByMe: review.likedByMe ?? false,
     bookmarkedByMe: false,
     repostedByMe: false,
     comments: [],
@@ -320,8 +371,8 @@ export default function ProfilePage() {
           quotesResponse.data.quotes.map((quote) => ({
             id: String(quote.quoteId),
             quote: quote.quote,
-            likedByMe: false,
-            likeCount: 0,
+            likedByMe: quote.likedByMe ?? false,
+            likeCount: quote.likeCount ?? 0,
           }))
         );
         setIsFollowing(profileResponse.data.viewerFollowsTarget);
@@ -370,6 +421,10 @@ export default function ProfilePage() {
 
   const currentUserName = viewer?.name ?? profile?.user.name ?? '';
   const isOwnProfile = profile?.isOwnProfile ?? false;
+  // Quotes are visible to the owner and to friends (mutual follows) - never
+  // to strangers - so the panel (and the 3-column layout it needs) shows
+  // for both, not just isOwnProfile.
+  const showQuotesPanel = isOwnProfile || profile?.relationship === 'friend';
   const shouldShowFollowStats = Boolean(profile && profile.user.userId !== 0);
 
   // Save bio only
@@ -605,19 +660,69 @@ export default function ProfilePage() {
     }
   };
 
-  const handleToggleLike = (id: string) => {
-    const updater = (current: FeedItem[]) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              likedByMe: !item.likedByMe,
-              likeCount: item.likedByMe ? item.likeCount - 1 : item.likeCount + 1,
-            }
-          : item
+  const handleToggleLike = async (id: string) => {
+    const isReview = id.startsWith('review-');
+    const targetId = isReview ? id.replace(/^review-/, '') : id;
+    const list = isReview ? reviews : posts;
+    const setList = isReview ? setReviews : setPosts;
+    const item = list.find((i) => i.id === id);
+    if (!item) return;
+
+    const wasLiked = item.likedByMe;
+    const previousCount = item.likeCount;
+
+    // Optimistic update - reflected immediately, then reconciled (or rolled
+    // back) once the request settles.
+    setList((current) =>
+      current.map((i) =>
+        i.id === id ? { ...i, likedByMe: !wasLiked, likeCount: wasLiked ? i.likeCount - 1 : i.likeCount + 1 } : i
+      )
+    );
+
+    if (isDemoMode) return; // nothing to persist in demo mode
+
+    try {
+      const endpoint = `/${isReview ? 'reviews' : 'posts'}/${targetId}/like`;
+      const response = wasLiked
+        ? await apiClient.delete<{ likeCount: number; likedByMe: boolean }>(endpoint)
+        : await apiClient.post<{ likeCount: number; likedByMe: boolean }>(endpoint);
+
+      setList((current) =>
+        current.map((i) =>
+          i.id === id ? { ...i, likeCount: response.data.likeCount, likedByMe: response.data.likedByMe } : i
+        )
       );
-    setPosts(updater);
-    setReviews(updater);
+    } catch {
+      setList((current) =>
+        current.map((i) => (i.id === id ? { ...i, likedByMe: wasLiked, likeCount: previousCount } : i))
+      );
+      toast.error('Unable to update like. Please try again.');
+    }
+  };
+
+  // Fetches the full comment thread for a post/review the first time its
+  // comment section is opened - the posts/reviews list endpoints only send
+  // back a commentCount, not the comments themselves.
+  const [loadedCommentItemIds, setLoadedCommentItemIds] = useState<Set<string>>(new Set());
+
+  const handleOpenComments = async (itemId: string) => {
+    if (isDemoMode || loadedCommentItemIds.has(itemId)) return;
+
+    const isReview = itemId.startsWith('review-');
+    const targetId = isReview ? itemId.replace(/^review-/, '') : itemId;
+    const setList = isReview ? setReviews : setPosts;
+
+    try {
+      const response = await apiClient.get<{ comments: BackendComment[] }>(
+        `/${isReview ? 'reviews' : 'posts'}/${targetId}/comments`
+      );
+      const tree = buildCommentTree(response.data.comments);
+      setList((current) => current.map((item) => (item.id === itemId ? { ...item, comments: tree } : item)));
+      setLoadedCommentItemIds((current) => new Set(current).add(itemId));
+    } catch {
+      // A failed background comment fetch isn't worth interrupting the user
+      // with a toast - the section just stays empty until they retry.
+    }
   };
 
   // Bookmarking only applies to reviews (see FeedItemCard - the button is
@@ -657,27 +762,58 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAddComment = (itemId: string, _parentCommentId: string | null, content: string) => {
-    const newComment: FeedComment = {
-      id: `comment-${Date.now()}`,
-      author: { id: String(viewer?.userId ?? ''), name: currentUserName, username: viewer?.username ?? '' },
-      content,
-      createdAt: new Date().toISOString(),
-      replies: [],
-    };
+  const handleAddComment = async (itemId: string, parentCommentId: string | null, content: string) => {
+    const isReview = itemId.startsWith('review-');
+    const targetId = isReview ? itemId.replace(/^review-/, '') : itemId;
+    const setList = isReview ? setReviews : setPosts;
 
-    const updater = (current: FeedItem[]) =>
-      current.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              comments: [...item.comments, newComment],
-              commentCount: item.commentCount + 1,
-            }
-          : item
+    if (isDemoMode) {
+      const newComment: FeedComment = {
+        id: `comment-${Date.now()}`,
+        author: { id: String(viewer?.userId ?? ''), name: currentUserName, username: viewer?.username ?? '' },
+        content,
+        createdAt: new Date().toISOString(),
+        replies: [],
+      };
+      setList((current) =>
+        current.map((item) =>
+          item.id === itemId
+            ? { ...item, comments: addCommentToTree(item.comments, parentCommentId, newComment), commentCount: item.commentCount + 1 }
+            : item
+        )
       );
-    setPosts(updater);
-    setReviews(updater);
+      return;
+    }
+
+    try {
+      const endpoint = `/${isReview ? 'reviews' : 'posts'}/${targetId}/comments`;
+      const response = await apiClient.post<{ comment: BackendComment }>(endpoint, {
+        comment: content,
+        parentCommentId: parentCommentId ? Number(parentCommentId) : undefined,
+      });
+      const c = response.data.comment;
+      const newComment: FeedComment = {
+        id: String(c.commentId),
+        author: {
+          id: String(c.author.userId),
+          name: c.author.name,
+          username: c.author.username,
+          avatarUrl: resolveMediaUrl(c.author.profilePicture),
+        },
+        content: c.comment,
+        createdAt: c.createdAt,
+        replies: [],
+      };
+      setList((current) =>
+        current.map((item) =>
+          item.id === itemId
+            ? { ...item, comments: addCommentToTree(item.comments, parentCommentId, newComment), commentCount: item.commentCount + 1 }
+            : item
+        )
+      );
+    } catch {
+      toast.error('Unable to add comment. Please try again.');
+    }
   };
 
   const handleCreateEntry = async (payload: CreateEntryPayload) => {
@@ -755,6 +891,36 @@ export default function ProfilePage() {
       toast.success('Quote removed');
     } catch {
       toast.error('Unable to remove quote. Please try again.');
+    }
+  };
+
+  const handleToggleQuoteLike = async (id: string) => {
+    const quote = quotes.find((q) => q.id === id);
+    if (!quote) return;
+
+    const wasLiked = quote.likedByMe;
+    const previousCount = quote.likeCount;
+
+    setQuotes((current) =>
+      current.map((q) =>
+        q.id === id ? { ...q, likedByMe: !wasLiked, likeCount: wasLiked ? q.likeCount - 1 : q.likeCount + 1 } : q
+      )
+    );
+
+    if (isDemoMode) return;
+
+    try {
+      const response = wasLiked
+        ? await apiClient.delete<{ likeCount: number; likedByMe: boolean }>(`/quotes/${id}/like`)
+        : await apiClient.post<{ likeCount: number; likedByMe: boolean }>(`/quotes/${id}/like`);
+      setQuotes((current) =>
+        current.map((q) => (q.id === id ? { ...q, likeCount: response.data.likeCount, likedByMe: response.data.likedByMe } : q))
+      );
+    } catch {
+      setQuotes((current) =>
+        current.map((q) => (q.id === id ? { ...q, likedByMe: wasLiked, likeCount: previousCount } : q))
+      );
+      toast.error('Unable to update like. Please try again.');
     }
   };
 
@@ -978,9 +1144,12 @@ export default function ProfilePage() {
       </div>
 
       {/* Main Layout Grid */}
-      <div className={isOwnProfile ? 'grid grid-cols-1 lg:grid-cols-3 gap-8 items-start' : 'grid grid-cols-1 gap-8 items-start'}>
+      {/* Quotes have no visibility tiers of their own - unlike posts they're
+          gated purely by relationship, so friends (not just the owner) get
+          the same three-column layout with the Quotes panel visible. */}
+      <div className={showQuotesPanel ? 'grid grid-cols-1 lg:grid-cols-3 gap-8 items-start' : 'grid grid-cols-1 gap-8 items-start'}>
         {/* Left: Posts / Reviews Section */}
-        <div className={isOwnProfile ? 'lg:col-span-2 space-y-6' : 'space-y-6'}>
+        <div className={showQuotesPanel ? 'lg:col-span-2 space-y-6' : 'space-y-6'}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-5">
               {shouldShowFollowStats && (
@@ -1048,6 +1217,7 @@ export default function ProfilePage() {
                     onToggleLike={handleToggleLike}
                     onToggleBookmark={handleToggleBookmark}
                     onAddComment={handleAddComment}
+                    onOpenComments={handleOpenComments}
                     onDelete={handleDeleteItem}
                     canDelete={isOwnProfile}
                   />
@@ -1064,6 +1234,7 @@ export default function ProfilePage() {
                     onToggleLike={handleToggleLike}
                     onToggleBookmark={handleToggleBookmark}
                     onAddComment={handleAddComment}
+                    onOpenComments={handleOpenComments}
                     onDelete={handleDeleteItem}
                     canDelete={isOwnProfile}
                   />
@@ -1087,8 +1258,8 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Right: Quotes Section - own profile only */}
-        {isOwnProfile && (
+        {/* Right: Quotes Section - visible to the owner and to friends */}
+        {showQuotesPanel && (
           <div className="lg:col-span-1">
             <div className="sticky top-6 space-y-4 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-6 shadow-sm">
               <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
@@ -1113,16 +1284,24 @@ export default function ProfilePage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-medium italic text-textSecondary dark:text-textSecondary-dark">"{quote.quote}"</span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteQuote(quote.id)}
-                          className="shrink-0 rounded-full border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/30"
-                        >
-                          Delete
-                        </button>
+                        {isOwnProfile && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuote(quote.id)}
+                            className="shrink-0 rounded-full border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/30"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                       <div className="mt-2 flex items-center justify-between text-[11px] text-textSecondary dark:text-textSecondary-dark">
-                        <span className="font-semibold text-text dark:text-text-dark">♥ {quote.likeCount}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleQuoteLike(quote.id)}
+                          className={`font-semibold transition-colors ${quote.likedByMe ? 'text-primary' : 'text-text dark:text-text-dark hover:text-primary'}`}
+                        >
+                          ♥ {quote.likeCount}
+                        </button>
                         <span>{quote.likeCount > 0 ? 'Likes' : 'No likes yet'}</span>
                       </div>
                     </li>
@@ -1130,29 +1309,31 @@ export default function ProfilePage() {
                 </ul>
               )}
 
-              {/* Add quote */}
-              <form onSubmit={handleAddQuote} className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-3">
-                <textarea
-                  value={quoteDraft}
-                  onChange={(event) => setQuoteDraft(event.target.value)}
-                  placeholder="Add a quote..."
-                  maxLength={500}
-                  rows={2}
-                  className="w-full resize-none rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs leading-relaxed text-text dark:text-text-dark focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-textSecondary dark:text-textSecondary-dark">
-                    {quoteDraft.length}/500
-                  </span>
-                  <button
-                    type="submit"
-                    disabled={!quoteDraft.trim() || isAddingQuote}
-                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isAddingQuote ? 'Adding...' : 'Add quote'}
-                  </button>
-                </div>
-              </form>
+              {/* Add quote - owner only; friends can view and like but not add */}
+              {isOwnProfile && (
+                <form onSubmit={handleAddQuote} className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-3">
+                  <textarea
+                    value={quoteDraft}
+                    onChange={(event) => setQuoteDraft(event.target.value)}
+                    placeholder="Add a quote..."
+                    maxLength={500}
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs leading-relaxed text-text dark:text-text-dark focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-textSecondary dark:text-textSecondary-dark">
+                      {quoteDraft.length}/500
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={!quoteDraft.trim() || isAddingQuote}
+                      className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isAddingQuote ? 'Adding...' : 'Add quote'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}

@@ -2,30 +2,35 @@ const pool = require('../config/db');
 
 /**
  * Paginated posts for a profile page, newest first, with each post's like
- * count attached (post likes only - the join is strictly on
- * posts.post_id = likes.post_id, so quote likes never factor in). Comments
- * are intentionally not included.
+ * count and comment count attached (post likes/comments only - the joins
+ * are strictly on posts.post_id, so quote/review likes never factor in).
  *
  * `visibilities` is the array of visibility tiers the viewer is allowed to
  * see, e.g. ['PUBLIC'] for a stranger, ['PUBLIC','PRIVATE'] for a friend,
  * or all three for the profile owner - see src/utils/visibility.js.
+ *
+ * `viewerId` is the logged-in viewer's user id (or null), used only to
+ * compute `liked_by_me`.
  */
-async function findByUserPaginated(userId, { limit = 3, offset = 0, visibilities = ['PUBLIC'] } = {}) {
+async function findByUserPaginated(userId, { limit = 3, offset = 0, visibilities = ['PUBLIC'], viewerId = null } = {}) {
   const { rows } = await pool.query(
     `SELECT
         p.post_id,
         p.caption,
         p.visibility,
         p.created_at,
-        COUNT(l.like_id)::int AS like_count
+        COUNT(DISTINCT l.like_id)::int AS like_count,
+        COALESCE(BOOL_OR(l.user_id = $5), false) AS liked_by_me,
+        COUNT(DISTINCT c.comment_id)::int AS comment_count
      FROM posts p
      LEFT JOIN likes l ON l.post_id = p.post_id
+     LEFT JOIN comments c ON c.post_id = p.post_id
      WHERE p.user_id = $1
        AND p.visibility = ANY($2::text[])
      GROUP BY p.post_id
      ORDER BY p.created_at DESC
      LIMIT $3 OFFSET $4`,
-    [userId, visibilities, limit, offset]
+    [userId, visibilities, limit, offset, viewerId]
   );
   return rows;
 }
@@ -43,10 +48,11 @@ async function create(userId, { caption, visibility }) {
   return rows[0];
 }
 
-// Single post, joined with book + like count - same shape as one row of
-// findByUserPaginated, used to build the response right after creation and
-// to check ownership before delete.
-async function findById(postId) {
+// Single post, joined with like/comment stats - same shape as one row of
+// findByUserPaginated, used to build the response right after creation, to
+// check ownership before delete, and by likeController/commentController to
+// confirm a post exists before acting on it.
+async function findById(postId, viewerId = null) {
   const { rows } = await pool.query(
     `SELECT
         p.post_id,
@@ -54,12 +60,15 @@ async function findById(postId) {
         p.caption,
         p.visibility,
         p.created_at,
-        COUNT(l.like_id)::int AS like_count
+        COUNT(DISTINCT l.like_id)::int AS like_count,
+        COALESCE(BOOL_OR(l.user_id = $2), false) AS liked_by_me,
+        COUNT(DISTINCT c.comment_id)::int AS comment_count
      FROM posts p
      LEFT JOIN likes l ON l.post_id = p.post_id
+     LEFT JOIN comments c ON c.post_id = p.post_id
      WHERE p.post_id = $1
      GROUP BY p.post_id`,
-    [postId]
+    [postId, viewerId]
   );
   return rows[0] || null;
 }

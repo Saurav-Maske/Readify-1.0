@@ -26,6 +26,10 @@ interface FeedItemCardProps {
     onToggleLike: (id: string) => void;
     onToggleBookmark: (id: string) => void;
     onAddComment: (itemId: string, parentCommentId: string | null, content: string) => void;
+    /** Called the moment the comment section is opened (not on every re-render/close), so the
+     *  parent can lazy-load the full comment thread the first time it's needed. Optional - a
+     *  parent that already has all comments up front (or is only using mock data) can omit it. */
+    onOpenComments?: (id: string) => void;
     onDelete: (id: string) => void;
     canDelete?: boolean;
 }
@@ -37,6 +41,7 @@ export function FeedItemCard({
     onToggleLike,
     onToggleBookmark,
     onAddComment,
+    onOpenComments,
     onDelete,
     canDelete = true,
 }: FeedItemCardProps) {
@@ -177,7 +182,13 @@ export function FeedItemCard({
 
                         <button
                             type="button"
-                            onClick={() => setShowComments((open) => !open)}
+                            onClick={() =>
+                                setShowComments((open) => {
+                                    const next = !open;
+                                    if (next) onOpenComments?.(item.id);
+                                    return next;
+                                })
+                            }
                             className={`flex items-center gap-1.5 text-sm transition-colors duration-150 ${showComments ? 'text-primary' : 'hover:text-primary'
                                 }`}
                         >

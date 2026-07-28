@@ -67,6 +67,12 @@ async function getProfile(req, res, next) {
 
 // ---------------------------------------------------------------------------
 // GET /api/users/:username/quotes?limit=3
+//
+// Quotes have no visibility tiers of their own (unlike posts, which can be
+// PUBLIC/PRIVATE/JUST_ME) - instead they're gated purely by relationship:
+//   self     -> all of the owner's quotes
+//   friend   -> all of the owner's quotes
+//   stranger -> none at all
 // ---------------------------------------------------------------------------
 async function getRecentQuotes(req, res, next) {
   try {
@@ -77,16 +83,21 @@ async function getRecentQuotes(req, res, next) {
     }
 
     const relationship = await followerModel.getRelationship(req.user?.userId, targetUser.user_id);
-    const visibilities = getVisibleTiers(relationship);
     const limit = Math.min(Number(req.query.limit) || 3, 20);
 
-    const quotes = await quoteModel.findRecentByUser(targetUser.user_id, { limit, visibilities });
+    if (relationship === 'stranger') {
+      return res.json({ quotes: [] });
+    }
+
+    const quotes = await quoteModel.findRecentByUser(targetUser.user_id, { limit, viewerId: req.user?.userId ?? null });
 
     return res.json({
       quotes: quotes.map((q) => ({
         quoteId: q.quote_id,
         quote: q.quote,
         createdAt: q.created_at,
+        likeCount: q.like_count,
+        likedByMe: q.liked_by_me,
       })),
     });
   } catch (err) {
@@ -122,6 +133,7 @@ async function getPosts(req, res, next) {
       limit,
       offset,
       visibilities,
+      viewerId: req.user?.userId ?? null,
     });
 
     return res.json({
@@ -131,6 +143,8 @@ async function getPosts(req, res, next) {
         visibility: p.visibility,
         createdAt: p.created_at,
         likeCount: p.like_count,
+        likedByMe: p.liked_by_me,
+        commentCount: p.comment_count,
         book: p.book_id ? { bookId: p.book_id, title: p.book_title, author: p.book_author } : null,
       })),
       limit,
@@ -158,7 +172,11 @@ async function getReviews(req, res, next) {
     const limit = Math.min(Number(req.query.limit) || 3, 30);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-    const reviews = await reviewModel.findByUserPaginated(targetUser.user_id, { limit, offset });
+    const reviews = await reviewModel.findByUserPaginated(targetUser.user_id, {
+      limit,
+      offset,
+      viewerId: req.user?.userId ?? null,
+    });
 
     return res.json({
       reviews: reviews.map((r) => ({
@@ -166,6 +184,9 @@ async function getReviews(req, res, next) {
         rating: Number(r.rating),
         review: r.review,
         createdAt: r.created_at,
+        likeCount: r.like_count,
+        likedByMe: r.liked_by_me,
+        commentCount: r.comment_count,
         book: {
           bookId: r.book_id,
           title: r.book_title,

@@ -55,8 +55,9 @@ function formatQuote(q) {
   return {
     quoteId: q.quote_id,
     quote: q.quote,
-    visibility: q.visibility,
     createdAt: q.created_at,
+    likeCount: q.like_count ?? 0,
+    likedByMe: q.liked_by_me ?? false,
   };
 }
 

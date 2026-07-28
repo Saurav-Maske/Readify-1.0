@@ -101,6 +101,9 @@ function formatReview(r) {
     rating: Number(r.rating),
     review: r.review,
     createdAt: r.created_at,
+    likeCount: r.like_count ?? 0,
+    likedByMe: r.liked_by_me ?? false,
+    commentCount: r.comment_count ?? 0,
     book: {
       bookId: r.book_id,
       title: r.book_title,
