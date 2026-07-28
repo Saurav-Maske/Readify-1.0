@@ -11,6 +11,7 @@ const quotesRoutes = require('./routes/quotesRoutes');
 const commentsRoutes = require('./routes/commentRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const feedRoutes = require('./routes/feedRoutes');
+const discoverRoutes = require('./routes/discoverRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/quotes', quotesRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/feed', feedRoutes);
+app.use('/api/discover', discoverRoutes);
 
 // 404 fallback
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

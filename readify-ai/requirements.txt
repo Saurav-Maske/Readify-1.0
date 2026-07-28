@@ -1,0 +1,7 @@
+torch
+torch_geometric
+numpy
+python-dotenv
+google-generativeai
+psycopg2-binary
+rapidfuzz

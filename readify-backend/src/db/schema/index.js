@@ -22,6 +22,7 @@ const reviews = require('./reviews.schema');
 const likes = require('./likes.schema');       // depends on posts + quotes + reviews
 const comments = require('./comments.schema'); // depends on posts + reviews
 const userOnboarding = require('./userOnboarding.schema'); // depends on users
+const ai = require('./ai.schema'); // depends on users + books + reviews
 
 module.exports = [
   users,
@@ -37,4 +38,5 @@ module.exports = [
   likes,
   comments,
   userOnboarding,
+  ai,
 ];

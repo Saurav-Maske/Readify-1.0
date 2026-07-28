@@ -7,6 +7,7 @@ import { TrendingCard } from '../feed/TrendingCard';
 import { ReadersToFollowCard } from '../feed/ReadersToFollowCard';
 import { MOCK_AI_PICK, MOCK_TRENDING_BOOKS, MOCK_SUGGESTED_READERS } from '../../lib/mockFeedData';
 import type { SuggestedReader, TrendingBook } from '../../types/feed';
+import type { DiscoverRecommendation } from '../../types/discover';
 import apiClient from '../../lib/api';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ?? 'http://localhost:4000';
@@ -60,6 +61,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const [trendingBooks, setTrendingBooks] = useState<TrendingBook[]>([]);
   const [suggestedReaders, setSuggestedReaders] = useState<SuggestedReader[]>([]);
+  const [aiPick, setAiPick] = useState(MOCK_AI_PICK)
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   // Only fetches once the feed page (the only place this sidebar renders) is
@@ -110,6 +112,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           setSuggestedReaders([]);
         }
       }
+      apiClient.get<{ recommendations: DiscoverRecommendation[] }>('/discover', { params: { limit: 1 } })
+        .then((res) => {
+          const top = res.data.recommendations[0];
+          if (top) {
+            setAiPick({ id: String(top.bookId), title: top.title, author: top.author, reason: top.reason });
+          }
+        })
+        .catch(() => setAiPick(MOCK_AI_PICK)); // same fallback pattern as trending/connections
     }
 
     void loadSidebarData();
@@ -140,8 +150,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Right Sidebar Widgets - Visible ONLY on the Feed page */}
       {isFeedPage && (
         <aside className="hidden xl:block w-80 p-6 space-y-6 sticky top-0 h-screen overflow-y-auto scrollbar-hide border-l border-gray-100 dark:border-gray-800 shrink-0">
-          {/* No backend endpoint for this yet - stays on local mock data. */}
-          <AiPickCard pick={MOCK_AI_PICK} />
+          <AiPickCard pick={aiPick} />
           {trendingBooks.length > 0 && <TrendingCard books={trendingBooks} />}
           {suggestedReaders.length > 0 && (
             <ReadersToFollowCard readers={suggestedReaders} onToggleFollow={handleToggleFollow} />

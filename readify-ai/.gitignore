@@ -1,0 +1,23 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+venv/
+env/
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+sync_logs/
+
+# --- Model artifacts & data (large, regenerable, don't belong in git) ---
+data/
+!data/.gitkeep
+training/checkpoints/*.pt
+!training/checkpoints/.gitkeep
+
+# --- Logs ---
+*.log

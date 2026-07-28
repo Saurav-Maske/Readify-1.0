@@ -13,6 +13,7 @@ import ProfilePage from './pages/ProfilePage';
 import SearchPage from './pages/searchPage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import MyShelfPage from './pages/MyShelf';
+import DiscoverPage from './pages/DiscoverPage';
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/profile" element={<DashboardLayout><ProfilePage /></DashboardLayout>} />
         <Route path="/profile/:username" element={<DashboardLayout><ProfilePage /></DashboardLayout>} />
         <Route path="/shelf" element={<MyShelfPage />} />
+        <Route path="/discover" element={<DiscoverPage />} />
       </Routes>
     </BrowserRouter>
   );
