@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { isAxiosError } from 'axios';
 import apiClient from '../lib/api';
@@ -107,6 +107,7 @@ function toReviewViewModel(review: BackendBookReview): ReviewViewModel {
 const DEMO_BOOK_ID = 'book-ttt';
 
 export default function BookPage() {
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const bookId = searchParams.get('id') ?? '';
 
@@ -118,6 +119,14 @@ export default function BookPage() {
     const [isDemoMode, setIsDemoMode] = useState(false);
     const [isSavingToShelf, setIsSavingToShelf] = useState(false);
     const [savedToShelf, setSavedToShelf] = useState(false);
+
+    const handleGoBack = () => {
+        if (window.history.length > 1) {
+            navigate(-1);
+        } else {
+            navigate('/feed');
+        }
+    };
 
     useEffect(() => {
         let isCurrentRequest = true;
@@ -236,10 +245,14 @@ export default function BookPage() {
         return (
             <div className="min-h-screen bg-background px-4 py-8">
                 <div className="mx-auto max-w-3xl">
-                    <Link to="/feed" className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text">
+                    <button
+                        type="button"
+                        onClick={handleGoBack}
+                        className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text"
+                    >
                         <ArrowLeftIcon className="h-4 w-4" />
-                        Back to feed
-                    </Link>
+                        Back
+                    </button>
                     <div className="mt-10 rounded-2xl border border-dashed border-gray-200 bg-card p-10 text-center">
                         <p className="text-sm font-medium text-text">We don't have this book yet</p>
                         <p className="mt-1 text-sm text-textSecondary">It may not exist, or hasn't synced from the backend.</p>
@@ -253,10 +266,14 @@ export default function BookPage() {
         return (
             <div className="min-h-screen bg-background px-4 py-8">
                 <div className="mx-auto max-w-3xl">
-                    <Link to="/feed" className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text">
+                    <button
+                        type="button"
+                        onClick={handleGoBack}
+                        className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text"
+                    >
                         <ArrowLeftIcon className="h-4 w-4" />
-                        Back to feed
-                    </Link>
+                        Back
+                    </button>
                     <div className="mt-10 rounded-2xl border border-dashed border-gray-200 bg-card p-10 text-center">
                         <p className="text-sm font-medium text-text">{loadError}</p>
                     </div>
@@ -268,10 +285,14 @@ export default function BookPage() {
     return (
         <div className="min-h-screen bg-background px-4 py-8">
             <div className="mx-auto max-w-4xl">
-                <Link to="/feed" className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text">
+                <button
+                    type="button"
+                    onClick={handleGoBack}
+                    className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text"
+                >
                     <ArrowLeftIcon className="h-4 w-4" />
-                    Back to feed
-                </Link>
+                    Back
+                </button>
 
                 <div className="mt-6 grid gap-8 sm:grid-cols-[220px_1fr]">
                     <div>

@@ -14,6 +14,7 @@ import SearchPage from './pages/searchPage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import MyShelfPage from './pages/MyShelf';
 import DiscoverPage from './pages/DiscoverPage';
+import { GuestOnlyRoute } from './components/auth/GuestOnlyRoute';
 
 export default function App() {
   return (
@@ -21,10 +22,10 @@ export default function App() {
       <Toaster position="top-center" toastOptions={{ duration: 3500 }} />
       <Routes>
         {/* Public Routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<GuestOnlyRoute><Home /></GuestOnlyRoute>} />
+        <Route path="/login" element={<GuestOnlyRoute><LoginPage /></GuestOnlyRoute>} />
         <Route path="/questions" element={<QuestionsPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/signup" element={<GuestOnlyRoute><SignupPage /></GuestOnlyRoute>} />
         <Route path="/verify-otp" element={<OtpVerificationPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/signup/complete-profile" element={<GoogleSignupCompletePage />} />

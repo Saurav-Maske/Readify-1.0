@@ -95,8 +95,8 @@ export default function QuestionsPage() {
     name: 'readerStatus',
   });
 
-  // Question 4 is only mandatory if "active reader" is selected
-  const isQuestion4Mandatory = readerStatus === 'active';
+  // Question 4 is mandatory if "active reader" or "returning from a break" is selected
+  const isQuestion4Mandatory = readerStatus === 'active' || readerStatus === 'returning';
   const isLastStep = step === STEPS.length - 1;
   const currentFields = STEPS[step].fields;
   const currentStepOptional = step === 3 ? !isQuestion4Mandatory : STEPS[step].optional;
