@@ -37,7 +37,7 @@ export default function App() {
         <Route path="/profile" element={<DashboardLayout><ProfilePage /></DashboardLayout>} />
         <Route path="/profile/:username" element={<DashboardLayout><ProfilePage /></DashboardLayout>} />
         <Route path="/shelf" element={<MyShelfPage />} />
-        <Route path="/discover" element={<DiscoverPage />} />
+        <Route path="/discover" element={<DashboardLayout><DiscoverPage /></DashboardLayout>} />
       </Routes>
     </BrowserRouter>
   );

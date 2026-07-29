@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import { Sidebar } from '../feed/Sidebar';
 import { AiPickCard } from '../feed/AiPickCard';
 import { TrendingCard } from '../feed/TrendingCard';
 import { ReadersToFollowCard } from '../feed/ReadersToFollowCard';
+import { BookOpenIcon, MenuIcon } from '../icons';
 import { MOCK_AI_PICK, MOCK_TRENDING_BOOKS, MOCK_SUGGESTED_READERS } from '../../lib/mockFeedData';
 import type { SuggestedReader, TrendingBook } from '../../types/feed';
 import type { DiscoverRecommendation } from '../../types/discover';
@@ -55,13 +56,19 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close mobile drawer on route navigation
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Check if the current route is the feed page
   const isFeedPage = location.pathname === '/' || location.pathname === '/feed';
 
   const [trendingBooks, setTrendingBooks] = useState<TrendingBook[]>([]);
   const [suggestedReaders, setSuggestedReaders] = useState<SuggestedReader[]>([]);
-  const [aiPick, setAiPick] = useState(MOCK_AI_PICK)
+  const [aiPick, setAiPick] = useState(MOCK_AI_PICK);
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   // Only fetches once the feed page (the only place this sidebar renders) is
@@ -138,12 +145,30 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background dark:bg-background-dark flex w-full transition-colors duration-200">
-      {/* Left Sidebar (Only rendered here) */}
-      <Sidebar />
+    <div className="relative min-h-screen bg-background dark:bg-background-dark flex flex-col lg:flex-row w-full transition-colors duration-200">
+      {/* Mobile Header Bar (Visible when minimized or on smaller displays) */}
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-100 bg-card px-4 py-3 dark:border-gray-800 dark:bg-card-dark lg:hidden">
+        <Link to="/feed" className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-white">
+            <BookOpenIcon className="h-4 w-4" />
+          </span>
+          <span className="text-base font-bold text-text dark:text-text-dark">Readify</span>
+        </Link>
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(true)}
+          aria-label="Open sidebar menu"
+          className="rounded-xl p-2 text-textSecondary hover:bg-gray-100 dark:text-textSecondary-dark dark:hover:bg-gray-800"
+        >
+          <MenuIcon className="h-6 w-6" />
+        </button>
+      </header>
+
+      {/* Left Sidebar */}
+      <Sidebar mobileOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
 
       {/* Main Content Area */}
-      <main className="flex-1 min-w-0 px-8 py-8 max-w-4xl mx-auto overflow-y-auto">
+      <main className="flex-1 min-w-0 px-4 py-6 sm:px-8 sm:py-8 max-w-4xl mx-auto w-full">
         {children}
       </main>
 
