@@ -85,11 +85,50 @@ function formatReview(row) {
 }
 
 // ---------------------------------------------------------------------------
+// Ranks a single content type (posts, or reviews) against itself and returns
+// it sorted best-first. Keeping posts and reviews in separate pools means a
+// post only has to beat other posts to earn a good spot, instead of being
+// compared directly against reviews on a scale (similarity) posts can never
+// score on - see the note on FEED_WEIGHTS.similarity above.
+// ---------------------------------------------------------------------------
+function rankCandidates(rows, format, similarityFor) {
+  return rows
+    .map((row) => ({ row, format, score: scoreCandidate(row, similarityFor(row)) }))
+    .sort((a, b) => b.score - a.score);
+}
+
+// ---------------------------------------------------------------------------
+// Proportionally interleaves two already-ranked (best-first) lists so both
+// stay represented throughout the merged feed instead of one type sweeping
+// every top slot. Each list is walked in its own best-first order; whichever
+// list is proportionally further behind (fraction consumed so far) goes
+// next. E.g. 5 posts / 45 reviews merges roughly 1 post per 9 reviews,
+// spread across the whole feed - not all 5 posts stranded on page 4.
+// ---------------------------------------------------------------------------
+function interleaveByProportion(listA, listB) {
+  const result = [];
+  let a = 0;
+  let b = 0;
+  while (a < listA.length || b < listB.length) {
+    const aFraction = listA.length ? a / listA.length : Infinity;
+    const bFraction = listB.length ? b / listB.length : Infinity;
+    if (aFraction <= bFraction) {
+      result.push(listA[a++]);
+    } else {
+      result.push(listB[b++]);
+    }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/feed?limit=20&offset=0   (protected, requireAuth)
 //
-// Merges posts + reviews from everyone except the viewer (respecting the
-// same PUBLIC/PRIVATE/JUST_ME visibility rule as profileController), scores
-// each candidate with the blend above, and returns them ranked.
+// Pulls posts + reviews from everyone except the viewer (respecting the
+// same PUBLIC/PRIVATE/JUST_ME visibility rule as profileController), ranks
+// each type against its own kind, then interleaves the two ranked lists
+// proportionally so recent/liked posts keep surfacing throughout the feed
+// rather than being crowded out by high-similarity or readify_ai reviews.
 // ---------------------------------------------------------------------------
 async function getFeed(req, res, next) {
   try {
@@ -103,28 +142,23 @@ async function getFeed(req, res, next) {
       feedModel.findCandidateReviews(viewerId),
     ]);
 
-    const scored = [];
+    // Posts have no book_id (see DATABASE.md), so there's nothing to run
+    // cosine similarity against - similarity contributes 0 for posts.
+    const rankedPosts = rankCandidates(posts, formatPost, () => 0);
 
-    for (const row of posts) {
-      // Posts have no book_id (see DATABASE.md), so there's nothing to run
-      // cosine similarity against - similarity contributes 0 for posts.
-      scored.push({ row, format: formatPost, score: scoreCandidate(row, 0) });
-    }
-
-    for (const row of reviews) {
+    const rankedReviews = rankCandidates(reviews, formatReview, (row) => {
       const bookVector = tasteModel.buildBookVector({ genre: row.book_genre, author: row.book_author });
-      const similarity = cosineSimilarity(userVector, bookVector);
-      scored.push({ row, format: formatReview, score: scoreCandidate(row, similarity) });
-    }
+      return cosineSimilarity(userVector, bookVector);
+    });
 
-    scored.sort((a, b) => b.score - a.score);
-    const page = scored.slice(offset, offset + limit);
+    const merged = interleaveByProportion(rankedPosts, rankedReviews);
+    const page = merged.slice(offset, offset + limit);
 
     return res.json({
       items: page.map((entry) => entry.format(entry.row)),
       limit,
       offset,
-      hasMore: offset + limit < scored.length,
+      hasMore: offset + limit < merged.length,
     });
   } catch (err) {
     next(err);
