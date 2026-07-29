@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import { FeedItemCard } from '../components/feed/FeedItemCard';
 import { NewEntryModal } from '../components/feed/NewEntryModal';
-import { PlusIcon } from '../components/icons';
+import { ArrowLeftIcon, PlusIcon } from '../components/icons';
 import { Avatar } from '../components/ui/Avatar';
 import type { CreateEntryPayload, FeedComment, FeedItem } from '../types/feed';
 import { addCommentToTree } from '../lib/commentUtils';
@@ -291,6 +291,7 @@ function getFollowStateLabel(state: FollowState): string {
 }
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
   const { username: viewedUsername } = useParams<{ username: string }>();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [viewer, setViewer] = useState<BackendUser | null>(null);
@@ -954,6 +955,24 @@ export default function ProfilePage() {
 
   return (
     <div className="w-full space-y-8 pb-12">
+      {viewedUsername && (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate('/feed');
+              }
+            }}
+            className="inline-flex items-center gap-2 text-sm font-medium text-textSecondary dark:text-textSecondary-dark hover:text-text dark:hover:text-text-dark transition-colors"
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+            Back
+          </button>
+        </div>
+      )}
       {isLoading && <p className="text-sm text-textSecondary">Loading profile...</p>}
       {!isLoading && loadError && <p className="text-sm text-error">{loadError}</p>}
       {!isLoading && !profile && !loadError && <p className="text-sm text-textSecondary">Profile not found.</p>}
@@ -1393,11 +1412,17 @@ export default function ProfilePage() {
                         key={entry.userId}
                         className="flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
                       >
-                        <Avatar name={entry.name} src={resolveMediaUrl(entry.profilePicture ?? undefined)} size="sm" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-text dark:text-text-dark">{entry.name}</p>
-                          <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">@{entry.username}</p>
-                        </div>
+                        <Link
+                          to={`/profile/${encodeURIComponent(entry.username)}`}
+                          onClick={() => setActiveModal(null)}
+                          className="flex min-w-0 flex-1 items-center gap-3 hover:underline"
+                        >
+                          <Avatar name={entry.name} src={resolveMediaUrl(entry.profilePicture ?? undefined)} size="sm" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-text dark:text-text-dark">{entry.name}</p>
+                            <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">@{entry.username}</p>
+                          </div>
+                        </Link>
                         {isOwnProfile && activeModal === 'followers' && (
                           <button
                             type="button"

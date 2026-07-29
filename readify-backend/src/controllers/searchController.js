@@ -6,12 +6,9 @@ const { toPublicUser } = require('../utils/userFormat');
 // ---------------------------------------------------------------------------
 // GET /api/search?q=...&limit=20
 //
-// One search bar, two result types - decided purely by whether the query
-// starts with "@":
-//   "@jane"  -> search people by username/name (the "@" is stripped before
-//               hitting the DB)
-//   "dune"   -> search books by title/author (same matcher bookController's
-//               /books/lookup uses)
+// One search bar, two result types:
+//   "@jane"  -> search people only by username/name (users mode)
+//   "dune"   -> search BOTH books and users in parallel (both mode)
 //
 // optionalAuth is used so a logged-in viewer's follow status can be
 // attached to each user result, but logged-out visitors can still search.
@@ -50,11 +47,29 @@ async function search(req, res, next) {
       return res.json({ mode: 'users', query: trimmed, results });
     }
 
-    const books = await bookModel.search(trimmed, { limit });
+    // For non-@ searches, search both books AND users in parallel
+    const viewerId = req.user?.userId;
+    const [books, users] = await Promise.all([
+      bookModel.search(trimmed, { limit }),
+      userModel.search(trimmed, { limit: 10 }),
+    ]);
+
+    const userResults = await Promise.all(
+      users.map(async (u) => {
+        const isSelf = viewerId === u.user_id;
+        const following = !isSelf && viewerId ? await followerModel.isFollowing(viewerId, u.user_id) : false;
+        const publicUser = toPublicUser(u);
+        delete publicUser.gmail;
+        delete publicUser.isFirstLogin;
+        return { ...publicUser, isSelf, isFollowing: following };
+      })
+    );
+
     return res.json({
-      mode: 'books',
+      mode: 'both',
       query: trimmed,
-      results: books.map(formatBook),
+      bookResults: books.map(formatBook),
+      userResults,
     });
   } catch (err) {
     next(err);

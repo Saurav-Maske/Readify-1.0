@@ -36,18 +36,28 @@ interface BookResult {
   noOfRatings: number | null;
 }
 
-interface SearchResponse {
-  mode: 'users' | 'books';
+interface SearchResponseUsers {
+  mode: 'users';
   query: string;
-  results: UserResult[] | BookResult[];
+  results: UserResult[];
 }
 
+interface SearchResponseBoth {
+  mode: 'both';
+  query: string;
+  bookResults: BookResult[];
+  userResults: UserResult[];
+}
+
+type SearchResponse = SearchResponseUsers | SearchResponseBoth;
 type SearchStatus = 'idle' | 'loading' | 'error' | 'done';
+type ActiveTab = 'books' | 'people';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<SearchStatus>('idle');
-  const [mode, setMode] = useState<'users' | 'books'>('books');
+  const [mode, setMode] = useState<'users' | 'both'>('both');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('books');
   const [userResults, setUserResults] = useState<UserResult[]>([]);
   const [bookResults, setBookResults] = useState<BookResult[]>([]);
   const requestIdRef = useRef(0);
@@ -70,13 +80,23 @@ export default function SearchPage() {
         .get<SearchResponse>('/search', { params: { q: trimmed, limit: 20 } })
         .then((response) => {
           if (requestIdRef.current !== currentRequestId) return;
-          setMode(response.data.mode);
-          if (response.data.mode === 'users') {
-            setUserResults(response.data.results as UserResult[]);
+          const data = response.data;
+          setMode(data.mode);
+
+          if (data.mode === 'users') {
+            setUserResults(data.results);
             setBookResults([]);
+            setActiveTab('people');
           } else {
-            setBookResults(response.data.results as BookResult[]);
-            setUserResults([]);
+            // mode === 'both'
+            setBookResults(data.bookResults);
+            setUserResults(data.userResults);
+            // Switch to people tab if no books but there are people results
+            if (data.bookResults.length === 0 && data.userResults.length > 0) {
+              setActiveTab('people');
+            } else {
+              setActiveTab('books');
+            }
           }
           setStatus('done');
         })
@@ -116,7 +136,8 @@ export default function SearchPage() {
     }
   };
 
-  const isSearchingUsers = query.trim().startsWith('@');
+  const isUserOnlySearch = query.trim().startsWith('@');
+  const showTabs = status === 'done' && mode === 'both';
 
   return (
     <div className="w-full space-y-6 pb-12">
@@ -153,14 +174,14 @@ export default function SearchPage() {
         <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-card dark:bg-card-dark p-10 text-center">
           <p className="text-sm font-medium text-text dark:text-text-dark">Find people and books</p>
           <p className="mt-1 text-sm text-textSecondary dark:text-textSecondary-dark">
-            Try "@jane" to find a reader, or "Dune" to find a book.
+            Try "Dune" to find books and matching readers, or "@jane" to find a specific person.
           </p>
         </div>
       )}
 
       {status === 'loading' && (
         <p className="text-sm text-textSecondary dark:text-textSecondary-dark">
-          Searching for {isSearchingUsers ? 'people' : 'books'}...
+          Searching for {isUserOnlySearch ? 'people' : 'books and people'}...
         </p>
       )}
 
@@ -168,53 +189,53 @@ export default function SearchPage() {
         <p className="text-sm text-error">Unable to search right now. Please try again.</p>
       )}
 
-      {status === 'done' && mode === 'users' && (
-        <div className="space-y-3">
-          {userResults.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-card dark:bg-card-dark p-10 text-center">
-              <p className="text-sm font-medium text-text dark:text-text-dark">No readers found.</p>
-              <p className="mt-1 text-sm text-textSecondary dark:text-textSecondary-dark">
-                Double check the username or try a different name.
-              </p>
-            </div>
-          ) : (
-            userResults.map((user) => (
-              <div
-                key={user.userId}
-                className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-4 shadow-sm"
-              >
-                <Link to={`/profile/${encodeURIComponent(user.username)}`} className="flex min-w-0 flex-1 items-center gap-3">
-                  <Avatar name={user.name} src={resolveProfilePicture(user.profilePicture)} size="md" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text dark:text-text-dark hover:underline">
-                      {user.name}
-                    </p>
-                    <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">@{user.username}</p>
-                    {user.bio && (
-                      <p className="mt-1 truncate text-xs text-textSecondary dark:text-textSecondary-dark">{user.bio}</p>
-                    )}
-                  </div>
-                </Link>
-                {!user.isSelf && (
-                  <button
-                    type="button"
-                    onClick={() => handleToggleFollow(user)}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
-                      user.isFollowing
-                        ? 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-textSecondary dark:text-textSecondary-dark'
-                        : 'border-primary text-primary hover:bg-secondary/10'
-                    }`}
-                  >
-                    {user.isFollowing ? 'Following' : 'Follow'}
-                  </button>
-                )}
-              </div>
-            ))
-          )}
+      {/* Tabs — only shown in 'both' mode */}
+      {showTabs && (
+        <div className="flex gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 p-1">
+          <button
+            type="button"
+            id="search-tab-books"
+            onClick={() => setActiveTab('books')}
+            className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors duration-150 ${
+              activeTab === 'books'
+                ? 'bg-card dark:bg-card-dark text-text dark:text-text-dark shadow-sm'
+                : 'text-textSecondary dark:text-textSecondary-dark hover:text-text dark:hover:text-text-dark'
+            }`}
+          >
+            Books
+            {bookResults.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
+                {bookResults.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            id="search-tab-people"
+            onClick={() => setActiveTab('people')}
+            className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors duration-150 ${
+              activeTab === 'people'
+                ? 'bg-card dark:bg-card-dark text-text dark:text-text-dark shadow-sm'
+                : 'text-textSecondary dark:text-textSecondary-dark hover:text-text dark:hover:text-text-dark'
+            }`}
+          >
+            People
+            {userResults.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
+                {userResults.length}
+              </span>
+            )}
+          </button>
         </div>
       )}
 
-      {status === 'done' && mode === 'books' && (
+      {/* Users-only mode (@ search) */}
+      {status === 'done' && mode === 'users' && (
+        <UserResultsList users={userResults} onToggleFollow={handleToggleFollow} />
+      )}
+
+      {/* Both mode — Books tab */}
+      {showTabs && activeTab === 'books' && (
         <div className="space-y-3">
           {bookResults.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-card dark:bg-card-dark p-10 text-center">
@@ -254,6 +275,67 @@ export default function SearchPage() {
           )}
         </div>
       )}
+
+      {/* Both mode — People tab */}
+      {showTabs && activeTab === 'people' && (
+        <UserResultsList users={userResults} onToggleFollow={handleToggleFollow} />
+      )}
+    </div>
+  );
+}
+
+function UserResultsList({
+  users,
+  onToggleFollow,
+}: {
+  users: UserResult[];
+  onToggleFollow: (user: UserResult) => void;
+}) {
+  if (users.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-card dark:bg-card-dark p-10 text-center">
+        <p className="text-sm font-medium text-text dark:text-text-dark">No readers found.</p>
+        <p className="mt-1 text-sm text-textSecondary dark:text-textSecondary-dark">
+          Double check the username or try a different name.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {users.map((user) => (
+        <div
+          key={user.userId}
+          className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-4 shadow-sm"
+        >
+          <Link to={`/profile/${encodeURIComponent(user.username)}`} className="flex min-w-0 flex-1 items-center gap-3">
+            <Avatar name={user.name} src={resolveProfilePicture(user.profilePicture)} size="md" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-text dark:text-text-dark hover:underline">
+                {user.name}
+              </p>
+              <p className="truncate text-xs text-textSecondary dark:text-textSecondary-dark">@{user.username}</p>
+              {user.bio && (
+                <p className="mt-1 truncate text-xs text-textSecondary dark:text-textSecondary-dark">{user.bio}</p>
+              )}
+            </div>
+          </Link>
+          {!user.isSelf && (
+            <button
+              type="button"
+              onClick={() => onToggleFollow(user)}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                user.isFollowing
+                  ? 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-textSecondary dark:text-textSecondary-dark'
+                  : 'border-primary text-primary hover:bg-secondary/10'
+              }`}
+            >
+              {user.isFollowing ? 'Following' : 'Follow'}
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
