@@ -21,6 +21,9 @@ function DiscoverBookCard({ rec, index }: { rec: DiscoverRecommendation; index: 
     >
       <Link to={`/books?id=${rec.bookId}`} className="block">
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-t-2xl bg-gray-100 dark:bg-gray-800">
+          <span className="absolute right-2 top-2 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-black/60 px-1.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+            #{rec.rank}
+          </span>
           {rec.coverImage ? (
             <img
               src={rec.coverImage}

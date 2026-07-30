@@ -8,13 +8,13 @@ const pool = require('../config/db');
 // ---------------------------------------------------------------------------
 async function getRecommendationsForUser(userId, { limit = 10 } = {}) {
   const { rows } = await pool.query(
-    `SELECT r.book_id, r.rank, r.score, r.reason_type, r.reason_data, r.generated_at,
-            b.title, b.author, b.genre, b.cover_image, b.rating, b.no_of_ratings
-     FROM recommendations r
-     JOIN books b ON b.book_id = r.book_id
-     WHERE r.user_id = $1
-     ORDER BY r.rank ASC
-     LIMIT $2`,
+    `SELECT r.book_id, r.rank, r.score, r.reason_type, r.reason_data, r.reason_text, r.generated_at,
+          b.title, b.author, b.genre, b.cover_image, b.rating, b.no_of_ratings
+   FROM recommendations r
+   JOIN books b ON b.book_id = r.book_id
+   WHERE r.user_id = $1
+   ORDER BY r.rank ASC
+   LIMIT $2`,
     [userId, limit]
   );
   return rows;

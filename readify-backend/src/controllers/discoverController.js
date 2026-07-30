@@ -42,7 +42,7 @@ function formatRecommendation(row) {
     noOfRatings: row.no_of_ratings,
     reasonType,
     reasonLabel: REASON_LABEL[reasonType],
-    reasonText: REASON_TEXT[reasonType],
+    reasonText: row.reason_text || REASON_TEXT[reasonType],
     generatedAt: row.generated_at,
   };
 }
