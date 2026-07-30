@@ -305,5 +305,9 @@ scale further — see the comments atop `tasteModel.js`.
   wired into `POST /api/reviews`. `posts` and `quotes` no longer take a
   book at all, so extending unknown-book support to those (or to
   `wishlist`) is the remaining piece if that comes back as a feature.
-- **`likes.review_id`**: schema and unique index exist, but there's no
-  `likeController`/routes for any target (post, quote, or review) yet.
+- ~~**`likes.review_id`**: schema and unique index exist, but there's no
+  `likeController`/routes for any target (post, quote, or review) yet.~~
+  **Resolved** — `likeController.js` now covers all three targets:
+  `POST|DELETE /api/posts/:postId/like`, `/api/quotes/:quoteId/like`, and
+  `/api/reviews/:reviewId/like`. See `API.md` for the request/response
+  shape of each.

@@ -371,6 +371,50 @@ Unfollow the given user. Also idempotent.
 
 ---
 
+### `GET /users/:username/followers?limit=20&offset=0`
+Public (`optionalAuth`). `limit` is capped at 50. Each entry includes
+`isFollowedByViewer` so the frontend can render a per-row Follow/Following
+button without an extra request per user — `false` for a logged-out
+viewer.
+
+**Response**
+```json
+{
+  "followers": [
+    {
+      "userId": 7, "name": "Jane Doe", "username": "janedoe",
+      "profilePicture": null, "followedAt": "...", "isFollowedByViewer": true
+    }
+  ],
+  "limit": 20, "offset": 0, "hasMore": false
+}
+```
+**Errors:** `404` user not found
+
+---
+
+### `GET /users/:username/following?limit=20&offset=0`
+Public (`optionalAuth`). Same shape as `GET /users/:username/followers`,
+listing who this user follows instead of who follows them.
+
+**Errors:** `404` user not found
+
+---
+
+### `DELETE /users/me/followers/:username` 🔒 *protected*
+"Remove follower" — forcibly removes `:username` from **your own**
+followers list, without touching whether you follow them back. This is
+the mirror of `DELETE /users/:username/follow` (which removes the other
+direction of the relationship). Idempotent.
+
+**Response**
+```json
+{ "removed": true, "followersCount": 41 }
+```
+**Errors:** `404` user not found
+
+---
+
 ## My Shelf
 
 Three independent lists per user — `currently-reading` (at most one book,
@@ -700,6 +744,114 @@ Deletes your own quote. Same ownership-enforced-server-side behavior as
 
 ---
 
+## Likes
+
+Posts, quotes, and reviews can each be liked. All six endpoints follow the
+same shape: like/unlike is idempotent-in-effect (the underlying `likes` row
+is upserted/deleted), and both routes always respond with the *current*
+like state so the frontend never has to guess the new count itself.
+
+### `POST /posts/:postId/like` 🔒 *protected*
+### `DELETE /posts/:postId/like` 🔒 *protected*
+**Response**
+```json
+{ "likeCount": 4, "likedByMe": true }
+```
+**Errors:** `400` postId not an integer · `404` post not found (POST only)
+
+---
+
+### `POST /quotes/:quoteId/like` 🔒 *protected*
+### `DELETE /quotes/:quoteId/like` 🔒 *protected*
+**Response**
+```json
+{ "likeCount": 2, "likedByMe": true }
+```
+**Errors:** `400` quoteId not an integer · `404` quote not found (POST only)
+
+---
+
+### `POST /reviews/:reviewId/like` 🔒 *protected*
+### `DELETE /reviews/:reviewId/like` 🔒 *protected*
+**Response**
+```json
+{ "likeCount": 9, "likedByMe": true }
+```
+**Errors:** `400` reviewId not an integer · `404` review not found (POST only)
+
+---
+
+## Comments
+
+Comments belong to a post or a review, and support one level of threaded
+replies via `parentCommentId`. Deleting a comment is a single shared
+endpoint that works for both — ownership is checked by `comment_id` alone,
+so the client doesn't need to say which type it's deleting.
+
+### `GET /posts/:postId/comments`
+Public — works for logged-out visitors (`optionalAuth`).
+
+**Response**
+```json
+{
+  "comments": [
+    {
+      "commentId": 21, "parentCommentId": null, "comment": "Great pick!",
+      "createdAt": "...",
+      "author": { "userId": 7, "name": "Jane Doe", "username": "janedoe", "profilePicture": null }
+    }
+  ]
+}
+```
+**Errors:** `400` postId not an integer · `404` post not found
+
+---
+
+### `POST /posts/:postId/comments` 🔒 *protected*
+```json
+{ "comment": "Great pick!", "parentCommentId": null }
+```
+- `comment` — string, required (must have non-whitespace content).
+- `parentCommentId` — integer, optional — set to reply to another comment.
+
+**Response** — `201`
+```json
+{
+  "comment": {
+    "commentId": 21, "parentCommentId": null, "comment": "Great pick!",
+    "createdAt": "...",
+    "author": { "userId": 7, "name": "Jane Doe", "username": "janedoe", "profilePicture": null }
+  }
+}
+```
+**Errors:** `400` missing `comment` · `400` postId not an integer · `404` post not found
+
+---
+
+### `GET /reviews/:reviewId/comments`
+Public (`optionalAuth`). Same response shape as `GET /posts/:postId/comments`.
+
+**Errors:** `400` reviewId not an integer · `404` review not found
+
+---
+
+### `POST /reviews/:reviewId/comments` 🔒 *protected*
+Same request/response shape as `POST /posts/:postId/comments`.
+
+**Errors:** `400` missing `comment` · `400` reviewId not an integer · `404` review not found
+
+---
+
+### `DELETE /comments/:commentId` 🔒 *protected*
+Deletes your own comment, whether it's on a post or a review. Ownership is
+enforced server-side — deleting someone else's comment returns `404`, same
+as it not existing at all.
+
+**Response** — `204 No Content`
+**Errors:** `400` commentId not an integer · `404` not found / not yours
+
+---
+
 ## Feed
 
 All feed endpoints are protected — they rank/filter relative to the logged-
@@ -789,3 +941,38 @@ json
     { "userId": 14, "name": "Dev Sharma", "username": "devreads", "profilePicture": null, "reviewCount": 22 }
   ]
 }
+
+---
+
+## Discover
+
+### `GET /discover?limit=30` 🔒 *protected*
+Reads pre-computed recommendations out of the `recommendations` table —
+there is no model inference at request time. That table is only as fresh
+as the last manual run of `readify-ai/jobs/build_and_train_discover_graph.py`
+(see the `readify-ai` README). `limit` is capped at 30 server-side.
+
+Each recommendation carries a structured `reasonType` (computed by the
+Python job) plus two derived, templated strings: `reasonLabel` (a short
+badge shown by default) and `reasonText` (a fuller sentence shown behind a
+"why this recommendation" hover/tap). Unrecognized/missing `reasonType`
+values fall back to `similar_readers`.
+
+**Response**
+```json
+{
+  "recommendations": [
+    {
+      "bookId": 3, "rank": 1, "title": "Dune", "author": "Frank Herbert",
+      "genre": "Sci-Fi", "coverImage": null, "rating": 4.2, "noOfRatings": 131,
+      "reasonType": "reading_history_match",
+      "reasonLabel": "Reading history match",
+      "reasonText": "Because you\u2019ve read similar books before",
+      "generatedAt": "..."
+    }
+  ]
+}
+```
+`reasonType` values: `currently_reading_match`, `reading_history_match`,
+`wishlist_match`, `social_engagement`, `friend_activity`, `similar_readers`
+(the fallback/default).
