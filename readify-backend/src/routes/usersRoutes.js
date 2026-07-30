@@ -17,6 +17,12 @@ router.patch(
   profileController.updateMyProfile
 );
 
+// Serves profile picture bytes straight from Postgres. Two path segments,
+// so this can never collide with the single-segment /:username route below,
+// regardless of registration order. Public - profile pictures are visible
+// the same way they always were on anyone's profile.
+router.get('/picture/:userId', profileController.getProfilePictureImage);
+
 // My Shelf (currently reading / want to read / finished) - all scoped to the
 // logged-in user, also placed above /:username so they're never shadowed.
 router.get('/me/shelf', requireAuth, shelfController.getShelf);

@@ -1,5 +1,31 @@
+const fs = require('fs');
+const path = require('path');
 const pool = require('../config/db');
 const schemas = require('./schema');
+
+// Committed to the repo (NOT gitignored, unlike /uploads) so it's always
+// available at boot regardless of Render's ephemeral disk. Only affects the
+// seed AI account (user_id = 0) - real users' pictures are uploaded by them
+// and already stored in the DB via profileController.updateMyProfile.
+const AI_AVATAR_PATH = path.join(__dirname, '../../seed-assets/readify-ai.jpg');
+const AI_AVATAR_MIME = 'image/jpeg'; // matches the .jpg above - update both together if you swap formats
+
+async function seedAiAvatar() {
+  try {
+    const buffer = fs.readFileSync(AI_AVATAR_PATH);
+    await pool.query(
+      `UPDATE users
+       SET profile_picture = '/api/users/picture/0',
+           profile_picture_data = $1,
+           profile_picture_mime = $2
+       WHERE user_id = 0`,
+      [buffer, AI_AVATAR_MIME]
+    );
+    console.log('✅ Readify AI avatar seeded into the database');
+  } catch (err) {
+    console.warn('⚠️  Could not seed Readify AI avatar:', err.message);
+  }
+}
 
 /**
  * Runs on every server start.
@@ -42,6 +68,8 @@ async function initDb() {
       `✅ ${schema.name} ready${schema.temporary ? ' (reset)' : ' (created if missing)'}`
     );
   }
+
+  await seedAiAvatar();
 
   console.log('✅ Database initialization complete.');
 }

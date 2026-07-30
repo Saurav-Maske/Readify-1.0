@@ -1,6 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-
 const userModel = require('../models/userModel');
 const followerModel = require('../models/followerModel');
 const reviewModel = require('../models/reviewModel');
@@ -224,28 +221,26 @@ async function updateMyProfile(req, res, next) {
       return res.status(400).json({ error: `Bio must be ${MAX_BIO_LENGTH} characters or fewer` });
     }
 
-    let profilePicture;
-    let oldPicturePath;
-    if (req.file) {
-      profilePicture = `/uploads/profile-pictures/${req.file.filename}`;
+    let profilePictureUrl;
+    let profilePictureData;
+    let profilePictureMime;
 
-      const currentUser = await userModel.findById(userId);
-      if (currentUser?.profile_picture?.startsWith('/uploads/profile-pictures/')) {
-        oldPicturePath = path.join(
-          __dirname,
-          '../../uploads/profile-pictures',
-          path.basename(currentUser.profile_picture)
-        );
-      }
+    if (req.file) {
+      // Bytes go straight into Postgres - no local disk involved, so this
+      // survives redeploys/restarts on ephemeral hosts like Render's free tier.
+      profilePictureUrl = `/api/users/picture/${userId}`;
+      profilePictureData = req.file.buffer;
+      profilePictureMime = req.file.mimetype;
     }
 
-    const updatedUser = await userModel.updateProfile(userId, { bio, profilePicture });
+    const updatedUser = await userModel.updateProfile(userId, {
+      bio,
+      profilePictureUrl,
+      profilePictureData,
+      profilePictureMime,
+    });
     if (!updatedUser) {
       return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (oldPicturePath) {
-      fs.unlink(oldPicturePath, () => {}); // best-effort, ignore failures
     }
 
     return res.json({ user: toPublicUser(updatedUser) });
@@ -254,4 +249,36 @@ async function updateMyProfile(req, res, next) {
   }
 }
 
-module.exports = { getProfile, getRecentQuotes, getPosts, getReviews, updateMyProfile };
+// ---------------------------------------------------------------------------
+// GET /api/users/picture/:userId   (public, no auth needed - same as any
+// other profile picture would be publicly viewable)
+// Streams the image bytes straight out of Postgres.
+// ---------------------------------------------------------------------------
+async function getProfilePictureImage(req, res, next) {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    const row = await userModel.getProfilePicture(userId);
+    if (!row?.profile_picture_data) {
+      return res.status(404).json({ error: 'No profile picture set for this user' });
+    }
+
+    res.set('Content-Type', row.profile_picture_mime || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.send(row.profile_picture_data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  getProfile,
+  getRecentQuotes,
+  getPosts,
+  getReviews,
+  updateMyProfile,
+  getProfilePictureImage,
+};

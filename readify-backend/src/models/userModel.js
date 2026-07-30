@@ -85,21 +85,37 @@ async function search(query, { limit = 20 } = {}) {
   return rows;
 }
 
-async function updateProfile(userId, { bio, profilePicture }) {
+async function updateProfile(userId, { bio, profilePictureUrl, profilePictureData, profilePictureMime }) {
   // Use COALESCE so that only the fields actually provided are changed.
-  // If bio is undefined/null the existing bio is kept, same for profilePicture.
+  // If any of these is undefined/null, the existing value is kept.
   const { rows } = await pool.query(
     `UPDATE users
      SET
-       bio             = COALESCE($1, bio),
-       profile_picture = COALESCE($2, profile_picture)
-     WHERE user_id = $3
+       bio                  = COALESCE($1, bio),
+       profile_picture      = COALESCE($2, profile_picture),
+       profile_picture_data = COALESCE($3, profile_picture_data),
+       profile_picture_mime = COALESCE($4, profile_picture_mime)
+     WHERE user_id = $5
      RETURNING *`,
     [
       bio ?? null,
-      profilePicture ?? null,
+      profilePictureUrl ?? null,
+      profilePictureData ?? null,
+      profilePictureMime ?? null,
       userId,
     ]
+  );
+  return rows[0] || null;
+}
+
+// Used by GET /api/users/picture/:userId to stream the image bytes back.
+// Kept as a narrow, separate query (not part of findById) so routes that
+// just need profile metadata never pull the (potentially large) image bytes
+// along with them.
+async function getProfilePicture(userId) {
+  const { rows } = await pool.query(
+    `SELECT profile_picture_data, profile_picture_mime FROM users WHERE user_id = $1`,
+    [userId]
   );
   return rows[0] || null;
 }
@@ -114,4 +130,5 @@ module.exports = {
   linkGoogleId,
   updatePasswordByGmail,
   updateProfile,
+  getProfilePicture,
 };
