@@ -38,5 +38,18 @@ module.exports = {
      END $$;`,
     // Lets the recommendation model quickly pull only verified-catalog books.
     `CREATE INDEX IF NOT EXISTS idx_books_source ON books(source);`,
+    // Trigram indexes back the typo-tolerant/fuzzy matching in
+    // bookModel.search (similarity() + the % operator). Wrapped so a
+    // database without pg_trgm available just skips these instead of
+    // failing the whole init run - search then falls back to plain ILIKE.
+    `DO $$
+     BEGIN
+       BEGIN
+         CREATE INDEX IF NOT EXISTS idx_books_title_trgm ON books USING gin (title gin_trgm_ops);
+         CREATE INDEX IF NOT EXISTS idx_books_author_trgm ON books USING gin (author gin_trgm_ops);
+       EXCEPTION WHEN OTHERS THEN
+         RAISE NOTICE 'Skipping trigram indexes on books (pg_trgm unavailable)';
+       END;
+     END $$;`,
   ],
 };

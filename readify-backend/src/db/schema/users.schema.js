@@ -45,5 +45,18 @@ module.exports = {
      SET profile_picture = '/uploads/profile-pictures/readify.jpg',
          bio = 'Your reading companion 🤖📚 I surface picks, catalog new books, and leave the occasional review. Not a real reader - just here to help you find your next one.'
      WHERE user_id = 0 AND (profile_picture IS NULL OR bio IS NULL);`,
+    // Trigram indexes back the typo-tolerant/fuzzy matching in
+    // userModel.search (similarity() + the % operator). Wrapped so a
+    // database without pg_trgm available just skips these instead of
+    // failing the whole init run - search then falls back to plain ILIKE.
+    `DO $$
+     BEGIN
+       BEGIN
+         CREATE INDEX IF NOT EXISTS idx_users_username_trgm ON users USING gin (username gin_trgm_ops);
+         CREATE INDEX IF NOT EXISTS idx_users_name_trgm ON users USING gin (name gin_trgm_ops);
+       EXCEPTION WHEN OTHERS THEN
+         RAISE NOTICE 'Skipping trigram indexes on users (pg_trgm unavailable)';
+       END;
+     END $$;`,
   ],
 };

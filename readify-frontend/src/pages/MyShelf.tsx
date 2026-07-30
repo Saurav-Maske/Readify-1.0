@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { isAxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +14,13 @@ interface ShelfBook {
   author: string;
   coverUrl: string;
   status: ShelfTab;
+}
+
+interface BookSuggestion {
+  bookId: number;
+  title: string;
+  author: string;
+  coverImage?: string | null;
 }
 
 type ShelfTab = "currently-reading" | "want-to-read" | "finished";
@@ -81,6 +88,72 @@ export default function MyShelfPage() {
   const [composerMode, setComposerMode] = useState<'post' | 'review'>('review');
   const [composerPrefill, setComposerPrefill] = useState<{ title: string; author: string } | null>(null);
 
+  // Book title autocomplete for the Add Book modal - same fuzzy/typo-tolerant
+  // GET /books/lookup search-as-you-type used when composing a review.
+  const [bookSuggestions, setBookSuggestions] = useState<BookSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingBooks, setIsSearchingBooks] = useState(false);
+  const [selectedBookId, setSelectedBookId] = useState<number | undefined>(undefined);
+  // Set right before we programmatically fill the title from a selection, so
+  // the very next title-change effect run doesn't re-open the dropdown.
+  const justSelectedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false;
+      return;
+    }
+
+    const query = newTitle.trim();
+    if (query.length < 2) {
+      setBookSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    let isCurrent = true;
+    setIsSearchingBooks(true);
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await apiClient.get<{ books: BookSuggestion[] }>('/books/lookup', {
+          params: { title: query, limit: 6 },
+        });
+        if (!isCurrent) return;
+        setBookSuggestions(response.data.books);
+        setShowSuggestions(true);
+      } catch {
+        if (!isCurrent) return;
+        // Lookup is a nice-to-have - if it fails, just fall back to manual entry.
+        setBookSuggestions([]);
+        setShowSuggestions(false);
+      } finally {
+        if (isCurrent) setIsSearchingBooks(false);
+      }
+    }, 300);
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timeoutId);
+    };
+  }, [newTitle, isModalOpen]);
+
+  const handleNewTitleChange = (value: string) => {
+    // Any manual edit invalidates a previously-selected suggestion.
+    setSelectedBookId(undefined);
+    setNewTitle(value);
+  };
+
+  const handleSelectBookSuggestion = (suggestion: BookSuggestion) => {
+    justSelectedRef.current = true;
+    setNewTitle(suggestion.title);
+    setNewAuthor(suggestion.author);
+    setSelectedBookId(suggestion.bookId);
+    setBookSuggestions([]);
+    setShowSuggestions(false);
+  };
+
   const loadShelf = async () => {
     setIsLoading(true);
     setLoadError("");
@@ -117,6 +190,7 @@ export default function MyShelfPage() {
     try {
       const response = await apiClient.post<{ book: BackendShelfBook; status: ShelfTab }>("/users/me/shelf", {
         status: newStatus,
+        bookId: selectedBookId,
         title: newTitle.trim(),
         author: newAuthor.trim(),
       });
@@ -134,6 +208,9 @@ export default function MyShelfPage() {
 
       setNewTitle("");
       setNewAuthor("");
+      setSelectedBookId(undefined);
+      setBookSuggestions([]);
+      setShowSuggestions(false);
       setIsModalOpen(false);
       toast.success("Book added to your shelf!");
     } catch {
@@ -317,7 +394,14 @@ export default function MyShelfPage() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-card-dark rounded-2xl max-w-md w-full p-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-200">
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setNewTitle("");
+                  setNewAuthor("");
+                  setSelectedBookId(undefined);
+                  setBookSuggestions([]);
+                  setShowSuggestions(false);
+                }}
                 className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1"
               >
                 <X size={20} />
@@ -326,18 +410,63 @@ export default function MyShelfPage() {
               <h2 className="text-xl font-bold text-text dark:text-text-dark mb-4">Add Book to Shelf</h2>
 
               <form onSubmit={handleAddBookSubmit} className="space-y-4">
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-semibold text-textSecondary dark:text-textSecondary-dark uppercase tracking-wider mb-1">
                     Book Title
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="e.g., The Hobbit"
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-text dark:text-text-dark rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      autoComplete="off"
+                      value={newTitle}
+                      onChange={(e) => handleNewTitleChange(e.target.value)}
+                      onFocus={() => {
+                        if (bookSuggestions.length > 0) setShowSuggestions(true);
+                      }}
+                      onBlur={() => {
+                        // Small delay so a click on a suggestion registers before the list unmounts.
+                        setTimeout(() => setShowSuggestions(false), 150);
+                      }}
+                      placeholder="e.g., The Hobbit"
+                      className="w-full px-3 py-2 pr-9 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-text dark:text-text-dark rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                      {isSearchingBooks ? (
+                        <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-500" />
+                      ) : selectedBookId ? (
+                        <span className="text-xs font-semibold text-indigo-600" title="Matched an existing book">
+                          ✓
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+
+                  {showSuggestions && bookSuggestions.length > 0 && (
+                    <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                      {bookSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion.bookId}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => handleSelectBookSuggestion(suggestion)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-100 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                        >
+                          <span className="flex h-9 w-6 shrink-0 items-center justify-center overflow-hidden rounded bg-gray-100 text-[8px] text-gray-400 dark:bg-gray-800">
+                            {suggestion.coverImage ? (
+                              <img src={suggestion.coverImage} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              "N/A"
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium text-text dark:text-text-dark">{suggestion.title}</span>
+                            <span className="block truncate text-xs text-textSecondary dark:text-textSecondary-dark">{suggestion.author}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -348,10 +477,20 @@ export default function MyShelfPage() {
                     type="text"
                     required
                     value={newAuthor}
-                    onChange={(e) => setNewAuthor(e.target.value)}
+                    onChange={(e) => {
+                      // Editing the author after picking a suggestion means this
+                      // is no longer necessarily that exact catalog book.
+                      setSelectedBookId(undefined);
+                      setNewAuthor(e.target.value);
+                    }}
                     placeholder="e.g., J.R.R. Tolkien"
                     className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-text dark:text-text-dark rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
+                  {!selectedBookId && (
+                    <p className="mt-1 text-xs text-textSecondary dark:text-textSecondary-dark">
+                      Not in our catalog yet? It'll be added when you save.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -372,7 +511,14 @@ export default function MyShelfPage() {
                 <div className="flex justify-end gap-3 mt-6">
                   <button
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setNewTitle("");
+                      setNewAuthor("");
+                      setSelectedBookId(undefined);
+                      setBookSuggestions([]);
+                      setShowSuggestions(false);
+                    }}
                     className="px-4 py-2 text-sm font-medium text-textSecondary dark:text-textSecondary-dark hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
                   >
                     Cancel

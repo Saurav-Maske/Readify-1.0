@@ -4,6 +4,10 @@ const discoverModel = require('../models/discoverModel');
 // Human-readable reason text, templated from the structured reason_type the
 // Python job computed - no LLM call needed, and every reason traces back to
 // a real graph signal rather than being invented at request time.
+//
+// REASON_TEXT is the fuller sentence, only surfaced on demand (the frontend
+// shows it behind a hover/tap "why this recommendation" affordance).
+// REASON_LABEL is a short badge shown by default alongside the book.
 // ---------------------------------------------------------------------------
 const REASON_TEXT = {
   currently_reading_match: 'Similar to what you\u2019re currently reading',
@@ -14,7 +18,19 @@ const REASON_TEXT = {
   similar_readers: 'Readers with similar taste enjoyed this',
 };
 
+const REASON_LABEL = {
+  currently_reading_match: 'Currently reading match',
+  reading_history_match: 'Reading history match',
+  wishlist_match: 'Wishlist match',
+  social_engagement: 'Social engagement',
+  friend_activity: 'Friend activity',
+  similar_readers: 'Similar readers',
+};
+
+const DEFAULT_REASON_TYPE = 'similar_readers';
+
 function formatRecommendation(row) {
+  const reasonType = row.reason_type && REASON_TEXT[row.reason_type] ? row.reason_type : DEFAULT_REASON_TYPE;
   return {
     bookId: row.book_id,
     rank: row.rank,
@@ -24,16 +40,18 @@ function formatRecommendation(row) {
     coverImage: row.cover_image,
     rating: row.rating !== undefined ? Number(row.rating) : undefined,
     noOfRatings: row.no_of_ratings,
-    reason: REASON_TEXT[row.reason_type] || REASON_TEXT.similar_readers,
+    reasonType,
+    reasonLabel: REASON_LABEL[reasonType],
+    reasonText: REASON_TEXT[reasonType],
     generatedAt: row.generated_at,
   };
 }
 
-// GET /api/discover?limit=10   (protected, requireAuth)
+// GET /api/discover?limit=30   (protected, requireAuth)
 async function getDiscoverRecommendations(req, res, next) {
   try {
     const viewerId = req.user.userId;
-    const limit = Math.min(Number(req.query.limit) || 10, 20);
+    const limit = Math.min(Number(req.query.limit) || 30, 30);
 
     const rows = await discoverModel.getRecommendationsForUser(viewerId, { limit });
 

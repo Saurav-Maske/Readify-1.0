@@ -69,7 +69,12 @@ export interface AiPickSuggestion {
   title: string;
   author: string;
   coverColor?: string;
-  reason: string;
+  /** Cover image URL from the book's catalog entry, if it has one. */
+  coverImage?: string | null;
+  /** Short badge label, e.g. "Reading history match". */
+  reasonLabel: string;
+  /** Full explanation shown on hover of "Why this recommendation?", e.g. "Because you've read similar books before". */
+  reasonText: string;
 }
 
 export interface TrendingBook {

@@ -1283,7 +1283,7 @@ export default function ProfilePage() {
             <div className="sticky top-6 space-y-4 rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-6 shadow-sm">
               <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
                 <h3 className="flex items-center gap-2 text-sm font-bold text-text dark:text-text-dark">
-                  <span>🎉</span> Quotes
+                  Quotes
                 </h3>
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                   {quotes.length} saved

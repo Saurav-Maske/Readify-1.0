@@ -107,7 +107,9 @@ export const MOCK_AI_PICK: AiPickSuggestion = {
   title: 'Fourth Wing',
   author: 'Rebecca Yarros',
   coverColor: '#111827',
-  reason: 'Based on your reading DNA and 6 similar readers',
+  coverImage: null,
+  reasonLabel: 'Similar readers',
+  reasonText: 'Based on your reading DNA and 6 similar readers',
 };
 
 export const MOCK_TRENDING_BOOKS: TrendingBook[] = [

@@ -64,16 +64,16 @@ export function FeedItemCard({
             className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-card dark:bg-card-dark p-5 shadow-sm"
         >
             <div className="flex items-start gap-3">
-                <Link to={`/users?id=${item.author.id}`}>
+                <Link to={`/profile/${encodeURIComponent(item.author.username)}`}>
                     <Avatar name={item.author.name} src={item.author.avatarUrl} />
                 </Link>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-x-2">
-                            <Link to={`/users?id=${item.author.id}`} className="font-semibold text-text dark:text-text-dark hover:underline">
+                            <Link to={`/profile/${encodeURIComponent(item.author.username)}`} className="font-semibold text-text dark:text-text-dark hover:underline">
                                 {item.author.name}
                             </Link>
-                            <Link to={`/users?id=${item.author.id}`} className="text-sm text-textSecondary dark:text-textSecondary-dark hover:underline">
+                            <Link to={`/profile/${encodeURIComponent(item.author.username)}`} className="text-sm text-textSecondary dark:text-textSecondary-dark hover:underline">
                                 @{item.author.username}
                             </Link>
                             {item.type === 'review' && item.isAiPick && (

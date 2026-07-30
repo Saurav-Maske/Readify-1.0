@@ -16,17 +16,39 @@ async function findById(bookId) {
 
 // ---------------------------------------------------------------------------
 // Backs GET /api/books/lookup?title=... - the compose-time "find this book"
-// helper used by posts/reviews/quotes (see bookController.lookupBooks).
-// Simple ILIKE search across title/author, catalog books ranked first.
+// helper used by posts/reviews/quotes (see bookController.lookupBooks) - and
+// GET /api/search (searchController.search).
+//
+// Three ways a row can match, so the caller doesn't have to type things
+// exactly right:
+//   1. Plain substring ILIKE on title/author - the common case.
+//   2. Punctuation-normalized ILIKE ("J. K. Rowling" == "JK Rowling" == "j k
+//      rowling") - strips everything but letters/digits on both sides.
+//   3. Trigram word_similarity (pg_trgm) above a threshold - catches typos
+//      like "hurry potter" -> "Harry Potter", and (unlike plain similarity(),
+//      which compares whole strings and unfairly penalizes a short query
+//      against a long title) still works well for partial/short queries
+//      since it scores the best-matching substring instead.
+// Results are ranked by how good the match is (best similarity first), with
+// verified catalog books still nudged ahead of user-submitted ones.
 // ---------------------------------------------------------------------------
+const TRIGRAM_SIMILARITY_THRESHOLD = 0.3;
+
 async function search(query, { limit = 20 } = {}) {
+  const normalizedQuery = query.replace(/[^a-zA-Z0-9]/g, '');
   const { rows } = await pool.query(
-    `SELECT *
+    `SELECT *,
+            GREATEST(word_similarity($2, title), word_similarity($2, author)) AS match_score
      FROM books
-     WHERE title ILIKE $1 OR author ILIKE $1
-     ORDER BY (source = 'catalog') DESC, no_of_ratings DESC, title ASC
-     LIMIT $2`,
-    [`%${query}%`, limit]
+     WHERE title ILIKE $1
+        OR author ILIKE $1
+        OR regexp_replace(title, '[^a-zA-Z0-9]', '', 'g') ILIKE '%' || $3 || '%'
+        OR regexp_replace(author, '[^a-zA-Z0-9]', '', 'g') ILIKE '%' || $3 || '%'
+        OR word_similarity($2, title) > ${TRIGRAM_SIMILARITY_THRESHOLD}
+        OR word_similarity($2, author) > ${TRIGRAM_SIMILARITY_THRESHOLD}
+     ORDER BY (source = 'catalog') DESC, match_score DESC, no_of_ratings DESC, title ASC
+     LIMIT $4`,
+    [`%${query}%`, query, normalizedQuery, limit]
   );
   return rows;
 }

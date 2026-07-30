@@ -123,7 +123,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         .then((res) => {
           const top = res.data.recommendations[0];
           if (top) {
-            setAiPick({ id: String(top.bookId), title: top.title, author: top.author, reason: top.reason });
+            setAiPick({
+              id: String(top.bookId),
+              title: top.title,
+              author: top.author,
+              coverImage: top.coverImage,
+              reasonLabel: top.reasonLabel,
+              reasonText: top.reasonText,
+            });
           }
         })
         .catch(() => setAiPick(MOCK_AI_PICK)); // same fallback pattern as trending/connections

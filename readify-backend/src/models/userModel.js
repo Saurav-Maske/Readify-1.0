@@ -52,18 +52,35 @@ async function updatePasswordByGmail(gmail, hashedPassword) {
 }
 
 // ---------------------------------------------------------------------------
-// Backs GET /api/search?q=@... - the "@" prefix means the caller wants
-// people, not books (see searchController.search). Matches on username OR
-// display name, exact username hits ranked first, then alphabetically.
+// Backs GET /api/search?q=@... (people-only mode) and the "both" mode in
+// searchController.search. Three ways a row can match, so the caller doesn't
+// have to type things exactly right:
+//   1. Plain substring ILIKE on username/name - the common case.
+//   2. Punctuation-normalized ILIKE ("J. K. Rowling" == "JK Rowling" == "j k
+//      rowling") - strips everything but letters/digits on both sides.
+//   3. Trigram word_similarity (pg_trgm) above a threshold - catches typos.
+//      word_similarity (rather than plain similarity()) scores the best-
+//      matching substring, so a short/partial query like "jonh" still finds
+//      "johnsmith" instead of being penalized for the length difference.
+// Exact username hits are still ranked first, then by match quality.
 // ---------------------------------------------------------------------------
+const TRIGRAM_SIMILARITY_THRESHOLD = 0.3;
+
 async function search(query, { limit = 20 } = {}) {
+  const normalizedQuery = query.replace(/[^a-zA-Z0-9]/g, '');
   const { rows } = await pool.query(
-    `SELECT *
+    `SELECT *,
+            GREATEST(word_similarity($2, username), word_similarity($2, name)) AS match_score
      FROM users
-     WHERE username ILIKE $1 OR name ILIKE $1
-     ORDER BY (LOWER(username) = LOWER($2)) DESC, username ASC
-     LIMIT $3`,
-    [`%${query}%`, query, limit]
+     WHERE username ILIKE $1
+        OR name ILIKE $1
+        OR regexp_replace(username, '[^a-zA-Z0-9]', '', 'g') ILIKE '%' || $3 || '%'
+        OR regexp_replace(name, '[^a-zA-Z0-9]', '', 'g') ILIKE '%' || $3 || '%'
+        OR word_similarity($2, username) > ${TRIGRAM_SIMILARITY_THRESHOLD}
+        OR word_similarity($2, name) > ${TRIGRAM_SIMILARITY_THRESHOLD}
+     ORDER BY (LOWER(username) = LOWER($2)) DESC, match_score DESC, username ASC
+     LIMIT $4`,
+    [`%${query}%`, query, normalizedQuery, limit]
   );
   return rows;
 }
