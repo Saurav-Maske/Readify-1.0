@@ -104,29 +104,46 @@ trigger, not background jobs.
 3. Trains a small 2-layer GAT with BPR (pairwise ranking) loss - same
    approach that worked for the original Goodreads-bootstrap model, just
    retrained from scratch on real Readify signal instead.
-4. For each user's Top-10, walks back through the *real* signal that
+4. For each user's Top-30, walks back through the *real* signal that
    produced it (does the recommended book share a genre/author with
    something in their wishlist? their reading history? something a
-   friend has?) and records that as a structured `reason_type` - not
-   guessed, not LLM-generated, traced directly from the data.
-5. Writes everything to the `recommendations` table, fully replacing
+   friend has?) and records that as a structured `reason_type` +
+   `reason_data` - not guessed, not LLM-generated, traced directly from
+   the data. Genre/author overlap is checked against the live
+   `books.genre`/`books.author` text columns, not `graph.pt`'s own
+   genre/author nodes - those turned out to be ~969 raw Goodreads shelf
+   tags at ~9.35/book, granular enough that two books a person would
+   call "the same genre" often shared no tag ID, which made this match
+   almost never fire even with plenty of real user signal.
+5. Sends that structured signal (one Gemini call per user, covering
+   their whole Top-30 in a single prompt) and asks it to phrase each one
+   as a natural sentence, written into `reason_text`.
+6. Writes everything to the `recommendations` table, fully replacing
    the previous run's rows.
 
 ## How "why this recommendation" gets answered
 
 ```
 Python: reason_type = "wishlist_match" / "friend_activity" / "reading_history_match" / ...
+        reason_data = { match: "genre" | "author", evidence_book_id: ... }
               |
               v
-Node (discoverController.js): REASON_TEXT[reason_type] -> human sentence
-   e.g. "Matches books on your wishlist"
+Gemini (one call per user, all 30 recs at once): reason_type/reason_data -> reason_text
+   e.g. "Since you loved The Fifth Season, this one's right up your alley"
               |
               v
-React (DiscoverPage.tsx): shown directly under each recommended book
+React (DiscoverPage.tsx): reason_text shown directly under each recommended book,
+   falling back to Node's REASON_TEXT[reason_type] template if reason_text is NULL
+   (no Gemini key configured, or that user's Gemini call failed)
 ```
 
-No LLM call anywhere in this chain - every reason is templated from a
-real, checkable fact.
+`reason_type`/`reason_data` are still fully deterministic and traced
+from real data - only the final phrasing (`reason_text`) goes through
+an LLM, and only as a rewrite of facts we already computed, not as the
+source of the "why." If Gemini isn't configured (no `GEMINI_API_KEY_*`
+in `.env`) or a given user's call fails, that user's rows just get
+`reason_text = NULL` and the run continues - Node's old template
+fallback covers them.
 
 **Known honest gap:** a user with zero interactions of any kind (and no
 friends who have any either) falls back to `reason_type = "similar_readers"` - pure embedding similarity with nothing structural
@@ -164,10 +181,14 @@ back in after the last redesign.
 
 ## Optional
 
-- **`training/gemini_key_rotation.py`**
-  - a multi-key fallback wrapper for `generate_ai_reviews.py`, useful if
-    you start hitting Gemini's free-tier rate limit and have multiple keys
-    to rotate through. Not required at current review-posting volume.
+- **`jobs/gemini_key_rotation.py`**
+  - a multi-key fallback wrapper, used by both `generate_ai_reviews.py` and
+    (as of the `reason_text` addition above) `build_and_train_discover_graph.py`.
+    Useful if you start hitting Gemini's free-tier rate limit and have
+    multiple keys to rotate through. `build_and_train_discover_graph.py`
+    makes one call per user for `reason_text`, so at ~10 users that's ~10
+    calls/run - fine on a single free-tier key for now, but worth having a
+    second key ready as user count grows.
 - **Cold-start fallback** for zero-interaction users (see gap above).
 - **Scaling past a few hundred users:** the "retrain fresh from scratch
   every manual run" approach is only viable because the graph is tiny.

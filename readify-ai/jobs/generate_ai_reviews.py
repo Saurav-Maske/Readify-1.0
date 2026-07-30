@@ -15,7 +15,7 @@ load_dotenv()
 import sys
 import os
 import argparse
-sys.path.append(os.path.join(os.path.dirname(_file_), "..", "training"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "training"))
 from db_utils import get_connection
 from gemini_key_rotation import GeminiKeyRotator
 

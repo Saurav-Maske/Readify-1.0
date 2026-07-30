@@ -14,7 +14,7 @@ class GeminiKeyRotator:
         GEMINI_API_KEY_3=...
         ... up to as many keys as you have
     """
-    def _init(self, model_name="gemini-2.5-flash", key_prefix="GEMINI_API_KEY"):
+    def __init__(self, model_name="gemini-3.1-flash-lite", key_prefix="GEMINI_API_KEY"):
         self.keys = []
         i = 1
         while True:
